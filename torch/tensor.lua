@@ -15,16 +15,36 @@ function meta:__index(k)
   return Tensor[k]
 end
 
-function Tensor:new(o)
-  assert(type(o) == 'table')
+function Tensor.new(t)
+  assert(type(t) == 'table')
+  setmetatable(t, meta)
 
-  setmetatable(o, meta)
-  return o
+  for i in ipairs(t) do
+    -- convert tables to tensors recursively
+    if type(t[i]) == 'table' and getmetatable(t[i]) ~= meta then
+      t[i] = Tensor(t[i])
+    elseif type(t[i]) ~= 'number' then
+      error(("Tensor contains non number '%s' in position '%s'"):format(t[i], i))
+    end
+  end
+
+  return t
+end
+setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
+
+
+function Tensor:size()
+  local size = {#self}
+
+  if type(self[1]) == 'table' then
+    size = {table.unpack(size), table.unpack(self[1]:size())}
+  end
+
+  return size
 end
 
-
 function Tensor:map(fn)
-  local res = Tensor:new({})
+  local res = Tensor({})
   for i,v in ipairs(self) do res[i] = fn(v) end
   return res
 end
@@ -38,7 +58,7 @@ end
 
 function Tensor.piecewise(op, a, b)
   assert(#a == #b, ('#a (%d) != #b (%d)'):format(#a, #b))
-  local res = Tensor:new({})
+  local res = Tensor({})
   for i=1,#a do
     res[i] = op(a[i], b[i])
   end
@@ -76,5 +96,6 @@ meta.__eq = function(a,b)
   local t = piecewiseOp(function(a,b) return a==b end)(a,b)
   return t:reduce(function(a,b) return a and b end, true)
 end
+
 
 return Tensor
