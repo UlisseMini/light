@@ -137,6 +137,29 @@ describe('Tensor', function()
   end)
 
   describe('matmul', function()
+    local m_2x2 = light.Tensor({{1,2}, {3,4}})
+    local m_3x3 = light.Tensor({{1,2,3}, {3,4,5}, {5,3,2}})
+    local m_3x2 = light.Tensor({{1,2}, {3,4}, {5,6}})
+    local m_2x3 = light.Tensor({{1,2,3}, {4,5,6}})
+
+    it('should raise an error when the matrix sizes do not match', function()
+      assert.error(function() m_2x2:matmul(m_3x3) end)
+      assert.error(function() m_3x3:matmul(m_2x2) end)
+
+      assert.error(function() m_3x2:matmul(m_3x3) end)
+    end)
+
+    it('should multiply 2x2 matrices', function()
+      local got = m_2x2:matmul(m_2x2)
+      local want = light.Tensor({{7, 10}, {15, 22}})
+      assert.is_equal(want, got)
+    end)
+
+    it('should multiply (2x3) * (3x2)', function()
+      local got = m_2x3:matmul(m_3x2)
+      local want = light.Tensor({{22, 28}, {49, 64}})
+      assert.is_equal(want, got)
+    end)
   end)
 end)
 
