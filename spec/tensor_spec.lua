@@ -1,6 +1,39 @@
 local torch = require('./torch')
 
 describe('Tensor', function()
+  describe('shape', function()
+    it('describes an array as a 1-tensor', function()
+      local x = torch.Tensor:new({1,2,3})
+      assert.are.same(x.shape, {3})
+    end)
+
+    it('describes a matrix as a 2-tensor', function()
+      local x = torch.Tensor:new({{1,2,3}, {3,4,5}})
+      assert.are.same(x.shape, {2, 3})
+    end)
+  end)
+
+  describe('indexing', function()
+    local t
+    before_each(function()
+      -- we're mutating t here, to avoid chains of failure we reset t
+      t = torch.Tensor:new({1,2})
+    end)
+
+    it('raises an error when an index is out of bounds', function()
+      assert.error(function() local x = t[3] end)
+    end)
+
+    it('raises an error when setting an index out of bounds', function()
+      assert.error(function() t[3] = 4 end)
+    end)
+
+    it('allows normal mutation', function()
+      t[1] = 2
+      assert.is_equal(t, torch.Tensor:new({2,2}))
+    end)
+  end)
+
   describe('equality', function()
     local x = torch.Tensor:new({3,2,1})
 
