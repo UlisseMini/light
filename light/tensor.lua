@@ -34,13 +34,27 @@ setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
 
 function Tensor:size()
-  local size = {#self}
-
   if type(self[1]) == 'table' then
-    size = {table.unpack(size), table.unpack(self[1]:size())}
+    return Tensor({#self, table.unpack(self[1]:size())})
+  else
+    return Tensor({#self})
   end
+end
 
-  return size
+function Tensor:matmul(other)
+
+end
+
+function Tensor:dot(other)
+  assert(#self == #other, 'vectors are of different lengths')
+
+  return (self*other):sum()
+end
+
+function Tensor:sum()
+  local s = 0
+  for _, v in ipairs(self) do s = s + v end
+  return s
 end
 
 function Tensor:map(fn)
