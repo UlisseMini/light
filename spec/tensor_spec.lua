@@ -1,4 +1,4 @@
-local light = require('light')
+local light = dofile('light/init.lua')
 
 describe('Tensor', function()
   describe('new', function()
