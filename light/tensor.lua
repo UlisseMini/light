@@ -21,8 +21,10 @@ function Tensor.new(t)
 
   for i in ipairs(t) do
     -- convert tables to tensors recursively
-    if type(t[i]) == 'table' and getmetatable(t[i]) ~= meta then
-      t[i] = Tensor(t[i])
+    if type(t[i]) == 'table' then
+      if getmetatable(t[i]) ~= meta then
+        t[i] = Tensor(t[i])
+      end
     elseif type(t[i]) ~= 'number' then
       error(("Tensor contains non number '%s' in position '%s'"):format(t[i], i))
     end
@@ -32,6 +34,29 @@ function Tensor.new(t)
 end
 setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
+local function slice(t, a)
+  local ret = {}
+  for i=a,#t do
+    ret[i-1] = t[i]
+  end
+  return ret
+end
+
+function Tensor.all(size, const)
+  local t = {}
+  if size == nil or #size == 0 then
+    return const
+  end
+
+  for i=1,size[1] do
+    t[i] = Tensor.all(slice(size, 2), const)
+  end
+
+  return Tensor(t)
+end
+
+function Tensor.ones(size) return Tensor.all(size, 1) end
+function Tensor.zeros(size) return Tensor.all(size, 0) end
 
 function Tensor:size()
   if type(self[1]) == 'table' then

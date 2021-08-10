@@ -7,12 +7,29 @@ describe('Tensor', function()
       assert.error(function() light.Tensor({{1, 'bar'}}) end)
     end)
 
+    it('allows nested tensors', function()
+      local T = light.Tensor
+      assert.not_error(function() T({T({1,2}), T({3,4})}) end)
+    end)
+
     -- TODO
     -- it('raises an error on a badly shaped tensor', function()
     --   assert.error(function()
     --     local x = light.Tensor({{1,2}, {3,4,5}})
     --   end)
     -- end)
+  end)
+
+  describe('all', function()
+    it('creates tensors from a vector shape', function()
+      local t = light.Tensor.all({3}, 2)
+      assert.are.same({2,2,2}, t)
+    end)
+
+    it('creates tensors from a matrix shape', function()
+      local t = light.Tensor.all({2,3}, 1)
+      assert.are.same({{1,1,1}, {1,1,1}}, t)
+    end)
   end)
 
   describe('size', function()
