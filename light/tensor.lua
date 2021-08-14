@@ -62,8 +62,8 @@ function Tensor.new(data, args)
 
   -- args.no_grad = true disables recording of gradient information
   if args and not args.no_grad and Tensor.do_grad then
-    self.grad = nil             -- grad of this node, computed after calling backward
-    self.parents = args.parents -- nodes that produced this node, eg. c = a + b, c.parents = {a,b}
+    self.grad = nil              -- grad of this node, computed after calling backward
+    self._parents = args.parents -- nodes that produced this node, eg. c = a + b, parents = {a,b}
   end
 
   setmetatable(self, meta)
@@ -141,8 +141,10 @@ function Tensor:backward()
   -- assume we are the result of a*b
   local a, b = table.unpack(self.parents)
 
-  a.grad = b * self.grad
-  b.grad = a * self.grad
+  local da, db = self._backward(a, b)
+
+  a.grad = da * self.grad
+  b.grad = db * self.grad
 end
 -- don't compute gradients in backward
 Tensor.backward = Tensor.no_grad_f(Tensor.backward)
@@ -204,27 +206,36 @@ function Tensor.piecewise(op, a, b)
   for i=1,#a do
     res[i] = op(a[i], b[i])
   end
-  return Tensor(res, {parents = {a,b}})
+  return Tensor(res)
 end
 
-local piecewiseOp = function(op)
+local piecewiseOp = function(op, backward)
   return function(a,b)
-    -- at most one of (a,b) is a number. if both were numbers we would never be called.
-    if type(a) == 'number' then return b:map(function(v) return op(a,v) end) end
-    if type(b) == 'number' then return a:map(function(v) return op(v,b) end) end
+    local ret
 
-    -- both are tensors, preform op piecewise
-    return Tensor.piecewise(op, a, b)
+    -- at most one of (a,b) is a number. if both were numbers we would never be called.
+    if type(a) == 'number' then
+      ret = b:map(function(v) return op(a,v) end)
+    elseif type(b) == 'number' then
+      ret = a:map(function(v) return op(v,b) end)
+    else
+      -- both are tensors, preform op piecewise
+      ret = Tensor.piecewise(op, a, b)
+    end
+
+    ret.parents = {a,b}
+    ret._backward = backward
+    return ret
   end
 end
 
 
 -- See https://www.lua.org/manual/5.3/manual.html#2.4 for reference
 
-meta.__add  = piecewiseOp(function(a,b) return a+b  end)
-meta.__sub  = piecewiseOp(function(a,b) return a-b  end)
-meta.__mul  = piecewiseOp(function(a,b) return a*b  end)
-meta.__div  = piecewiseOp(function(a,b) return a/b  end)
+meta.__add  = piecewiseOp(function(a,b) return a+b  end, function(a,b) return 1, 1 end)
+meta.__sub  = piecewiseOp(function(a,b) return a-b  end, function(a,b) return 1, -1 end)
+meta.__mul  = piecewiseOp(function(a,b) return a*b  end, function(a,b) return b, a end)
+meta.__div  = piecewiseOp(function(a,b) return a/b  end, function(a,b) return 1/b, -a/b^2 end)
 meta.__idiv = piecewiseOp(function(a,b) return a//b end)
 meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
 
