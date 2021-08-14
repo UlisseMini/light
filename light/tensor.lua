@@ -243,6 +243,4 @@ meta.__eq = function(a,b)
   return true
 end
 
-
-T = Tensor
 return Tensor

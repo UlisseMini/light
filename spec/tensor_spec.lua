@@ -197,6 +197,17 @@ describe('Tensor', function()
       assert.equal(b, a.grad)
       assert.equal(a, b.grad)
     end)
+
+    it('should backprop through addition', function()
+      local a = light.Tensor({1,2})
+      local b = light.Tensor({2,3})
+      local z = a + b
+      z:backward()
+
+      local ones = light.Tensor.ones({2})
+      assert.equal(ones, a.grad)
+      assert.equal(ones, b.grad)
+    end)
   end)
 end)
 
