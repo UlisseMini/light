@@ -188,6 +188,8 @@ describe('Tensor', function()
   end)
 
   describe('Autodiff', function()
+    after_each(function() light.Tensor.do_grad = true end)
+
     it('should backprop through multiplication', function()
       local a = light.Tensor({1,2})
       local b = light.Tensor({2,3})
