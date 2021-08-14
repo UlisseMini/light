@@ -1,4 +1,6 @@
-local Tensor = {}
+local Tensor = {
+  do_grad = true, -- contextually limit autodiff computation
+}
 local meta = {}
 
 local function typecheck(data)
@@ -58,7 +60,8 @@ function Tensor.new(data, args)
   typecheck(data)
   self.data = data
 
-  if args then
+  -- args.no_grad = true disables recording of gradient information
+  if args and not args.no_grad and Tensor.do_grad then
     self.grad = nil             -- grad of this node, computed after calling backward
     self.parents = args.parents -- nodes that produced this node, eg. c = a + b, c.parents = {a,b}
   end
@@ -107,9 +110,32 @@ end
 
 ---------------------- Autodiff ---------------------- 
 
+-- todo: put this in utils?
+local function finally(fn, cleanup)
+  local ret = table.pack(xpcall(fn, debug.traceback))
+  cleanup()
+
+  local status, err = table.unpack(ret)
+  if not status then error(err) end
+
+  table.remove(ret, 1)
+  return table.unpack(ret)
+end
+
+function Tensor.no_grad(fn)
+  local old = Tensor.do_grad
+  Tensor.do_grad = false
+  return finally(fn, function() Tensor.do_grad = old end)
+end
+
+function Tensor.no_grad_f(fn)
+  return function(...)
+    local args = table.pack(...)
+    return Tensor.no_grad(function() fn(table.unpack(args)) end)
+  end
+end
 
 function Tensor:backward()
-
   self.grad = Tensor.ones(self:size())
 
   -- assume we are the result of a*b
@@ -118,6 +144,8 @@ function Tensor:backward()
   a.grad = b * self.grad
   b.grad = a * self.grad
 end
+-- don't compute gradients in backward
+Tensor.backward = Tensor.no_grad_f(Tensor.backward)
 
 
 
