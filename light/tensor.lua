@@ -138,13 +138,22 @@ end
 function Tensor:backward()
   self.grad = Tensor.ones(self:size())
 
-  -- assume we are the result of a*b
-  local a, b = table.unpack(self.parents)
+  local stack = {self}
+  while #stack > 0 do
+    for i=1, #stack do
+      local node = table.remove(stack, 1)
 
-  local da, db = self._backward(a, b)
+      assert(#node._parents == 2, 'currently only supporting ops between two vars')
+      local a, b = table.unpack(node._parents)
+      local da, db = node._backward(a, b)
 
-  a.grad = da * self.grad
-  b.grad = db * self.grad
+      a.grad = (a.grad or 0) + da * node.grad
+      b.grad = (b.grad or 0) + db * node.grad
+
+      if a._parents then table.insert(stack, a) end
+      if b._parents then table.insert(stack, b) end
+    end
+  end
 end
 -- don't compute gradients in backward
 Tensor.backward = Tensor.no_grad_f(Tensor.backward)
@@ -223,8 +232,12 @@ local piecewiseOp = function(op, backward)
       ret = Tensor.piecewise(op, a, b)
     end
 
-    ret.parents = {a,b}
-    ret._backward = backward
+    -- todo: respect a.no_grad and b.no_grad, maybe factor the checking logic out to __newindex?
+    if Tensor.do_grad then
+      ret._parents = {a,b}
+      ret._backward = backward
+    end
+
     return ret
   end
 end

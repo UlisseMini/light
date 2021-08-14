@@ -208,6 +208,33 @@ describe('Tensor', function()
       assert.equal(ones, a.grad)
       assert.equal(ones, b.grad)
     end)
+
+    it('should backprop through multiplication and addition', function()
+      local x,y,a,b,z
+
+      x = light.Tensor({1,2})
+      y = light.Tensor({2,3})
+
+      a = x * y
+      b = x + y
+
+      z = a * b
+      z:backward()
+
+      -- this is what autodiff should have done, spelled out. where each
+      -- d(var) is dz/d(var).
+      light.Tensor.do_grad = false
+      local dx,dy,da,db,dz
+      dz = light.Tensor.ones({2})
+      db = a
+      da = b
+      dx = y*da + db
+      dy = x*da + db
+
+      assert.equal(dx, x.grad)
+      assert.equal(dy, y.grad)
+    end)
+
   end)
 end)
 
