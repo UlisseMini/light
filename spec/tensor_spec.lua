@@ -1,4 +1,4 @@
-local light = require('light')
+local light = dofile('light/init.lua')
 
 describe('Tensor', function()
   describe('new', function()
@@ -7,23 +7,48 @@ describe('Tensor', function()
       assert.error(function() light.Tensor({{1, 'bar'}}) end)
     end)
 
+    it('disallows nested tensors', function()
+      -- TODO: maybe this should be allowed? It might screw up autodiff though
+      local T = light.Tensor
+      assert.error(function() T({T({1,2}), T({3,4})}) end)
+    end)
+
     -- TODO
     -- it('raises an error on a badly shaped tensor', function()
     --   assert.error(function()
     --     local x = light.Tensor({{1,2}, {3,4,5}})
     --   end)
     -- end)
+
+    it('does nothing to tensors', function()
+      local t = light.Tensor({3,2})
+      local t2 = light.Tensor(t)
+      -- reference equality
+      assert.is_true(rawequal(t, t2))
+    end)
+  end)
+
+  describe('all', function()
+    it('creates tensors from a vector shape', function()
+      local t = light.Tensor.all({3}, 2)
+      assert.equal({2,2,2}, t)
+    end)
+
+    it('creates tensors from a matrix shape', function()
+      local t = light.Tensor.all({2,3}, 1)
+      assert.equal({{1,1,1}, {1,1,1}}, t)
+    end)
   end)
 
   describe('size', function()
     it('describes an array as a 1-tensor', function()
       local x = light.Tensor({1,2,3})
-      assert.is_equal(x:size(), {3})
+      assert.equal(x:size(), {3})
     end)
 
     it('describes a matrix as a 2-tensor', function()
       local x = light.Tensor({{1,2,3}, {3,4,5}})
-      assert.is_equal(x:size(), {2, 3})
+      assert.equal(x:size(), {2, 3})
     end)
   end)
 
@@ -98,13 +123,13 @@ describe('Tensor', function()
   describe('ops', function()
     local t = light.Tensor({1,2,3})
     it('should broadcast numbers over tensors', function()
-      assert.is_equal(t + 1, light.Tensor({2,3,4}))
-      assert.is_equal(t / 2, light.Tensor({1/2,2/2,3/2}))
+      assert.equal(t + 1, light.Tensor({2,3,4}))
+      assert.equal(t / 2, light.Tensor({1/2,2/2,3/2}))
     end)
 
     it('should apply operations piecewise', function()
-      assert.is_equal(t + t, t*2)
-      assert.is_equal(t / light.Tensor({2,2,1}), light.Tensor({1/2,2/2,3/1}))
+      assert.equal(t + t, t*2)
+      assert.equal(t / light.Tensor({2,2,1}), light.Tensor({1/2,2/2,3/1}))
     end)
   end)
 
@@ -159,6 +184,86 @@ describe('Tensor', function()
       local got = m_2x3:matmul(m_3x2)
       local want = light.Tensor({{22, 28}, {49, 64}})
       assert.is_equal(want, got)
+    end)
+  end)
+
+  describe('Autodiff', function()
+    after_each(function() light.Tensor.do_grad = true end)
+
+    it('should backprop through multiplication', function()
+      local a = light.Tensor({1,2})
+      local b = light.Tensor({2,3})
+      local z = a * b
+      z:backward()
+
+      assert.equal(b, a.grad)
+      assert.equal(a, b.grad)
+    end)
+
+    it('should backprop through addition', function()
+      local a = light.Tensor({1,2})
+      local b = light.Tensor({2,3})
+      local z = a + b
+      z:backward()
+
+      local ones = light.Tensor.ones({2})
+      assert.equal(ones, a.grad)
+      assert.equal(ones, b.grad)
+    end)
+
+    it('should backprop through multiplication and addition', function()
+      local x,y,a,b,z
+
+      x = light.Tensor({1,2})
+      y = light.Tensor({2,3})
+
+      a = x * y
+      b = x + y
+
+      z = a * b
+      z:backward()
+
+      -- this is what autodiff should have done, spelled out. where each
+      -- d(var) is dz/d(var).
+      light.Tensor.do_grad = false
+      local dx,dy,da,db,dz
+      dz = light.Tensor.ones({2})
+      db = a
+      da = b
+      dx = y*da + db
+      dy = x*da + db
+
+      assert.equal(dx, x.grad)
+      assert.equal(dy, y.grad)
+    end)
+
+    it('should have correct numerical derivatives for piecewise ops', function()
+      math.randomseed(42)
+
+      local N = 42 -- how many random tests to preform on each op
+
+      local ops = {'add', 'sub', 'mul', 'div'}
+      local meta = getmetatable(light.Tensor({1}))
+
+      for _, name in ipairs(ops) do
+        local op = meta['__' .. name]
+
+        local a, b
+        local partial_a = light.numeric.derivative(function(x) return op.op(x, b) end)
+        local partial_b = light.numeric.derivative(function(x) return op.op(a, x) end)
+        for i=1,N do
+          -- we shift by 1 so that division doesn't blow up
+          a, b = math.random(), math.random() + 1
+
+          local da, db = op.backward(a, b)
+          local numeric_da, numeric_db = partial_a(a), partial_b(b)
+
+          local error_a, error_b = math.abs(numeric_da - da), math.abs(numeric_db - db)
+
+          assert.is_true(error_a <= 0.0001, ('%s(%s, %s): error_a: %s'):format(name, a, b, error_a))
+          assert.is_true(error_b <= 0.0001, ('%s(%s, %s): error_b: %s'):format(name, a, b, error_b))
+        end
+      end
     end)
   end)
 end)
