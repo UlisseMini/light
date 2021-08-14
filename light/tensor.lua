@@ -33,14 +33,13 @@ function meta:__index(k)
   return x
 end
 
-
 function meta:__newindex(k, v)
   if type(k) == 'number' then
     -- TODO: allow adding tensors via indexing, and add fancy indexing
     typecheck(v)
     self.data[k] = v
   else
-    self[k] = v
+    rawset(self, k, v)
   end
 end
 
