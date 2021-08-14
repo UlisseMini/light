@@ -235,6 +235,34 @@ describe('Tensor', function()
       assert.equal(dy, y.grad)
     end)
 
+    it('should have correct numerical derivatives for piecewise ops', function()
+      math.randomseed(42)
+
+      local N = 42 -- how many random tests to preform on each op
+
+      local ops = {'add', 'sub', 'mul', 'div'}
+      local meta = getmetatable(light.Tensor({1}))
+
+      for _, name in ipairs(ops) do
+        local op = meta['__' .. name]
+
+        local a, b
+        local partial_a = light.numeric.derivative(function(x) return op.op(x, b) end)
+        local partial_b = light.numeric.derivative(function(x) return op.op(a, x) end)
+        for i=1,N do
+          -- we shift by 1 so that division doesn't blow up
+          a, b = math.random(), math.random() + 1
+
+          local da, db = op.backward(a, b)
+          local numeric_da, numeric_db = partial_a(a), partial_b(b)
+
+          local error_a, error_b = math.abs(numeric_da - da), math.abs(numeric_db - db)
+
+          assert.is_true(error_a <= 0.0001, ('%s(%s, %s): error_a: %s'):format(name, a, b, error_a))
+          assert.is_true(error_b <= 0.0001, ('%s(%s, %s): error_b: %s'):format(name, a, b, error_b))
+        end
+      end
+    end)
   end)
 end)
 

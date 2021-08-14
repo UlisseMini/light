@@ -219,7 +219,7 @@ function Tensor.piecewise(op, a, b)
 end
 
 local piecewiseOp = function(op, backward)
-  return function(a,b)
+  local forward = function(a,b)
     local ret
 
     -- at most one of (a,b) is a number. if both were numbers we would never be called.
@@ -240,6 +240,11 @@ local piecewiseOp = function(op, backward)
 
     return ret
   end
+
+  local self = {forward = forward, backward = backward, op = op}
+  setmetatable(self, {__call = function(_, ...) return forward(...) end})
+
+  return self
 end
 
 
