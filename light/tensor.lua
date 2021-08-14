@@ -1,6 +1,23 @@
 local Tensor = {}
 local meta = {}
 
+local function typecheck(data)
+  if type(data) == 'table' then
+    -- pytorch doesn't allow nested tensors: torch.tensor([tensor([1,2]), tensor([3,4])])
+    -- gives an error. I think this is because of autodiff difficulties,
+    -- returning a view of a tensor seems the correct approach.
+    if getmetatable(data) == meta then
+      error('nested tensors are not allowed because of issues with autodiff')
+    end
+
+    for i, v in ipairs(data) do
+      typecheck(v)
+    end
+  elseif type(data) ~= 'number' then
+    error(("Tensor contains non number '%s'"):format(data))
+  end
+end
+
 function meta:__tostring()
   local s = 'Tensor {\n'
   for i in ipairs(self) do
@@ -10,49 +27,71 @@ function meta:__tostring()
   return s
 end
 
--- For method lookups, eg: mytensor:map(...)
 function meta:__index(k)
-  return Tensor[k]
+  local x = self.data[k] or Tensor[k]
+  if type(x) == 'table' then return Tensor(x) end
+  return x
 end
 
-function Tensor.new(t)
-  assert(type(t) == 'table')
-  setmetatable(t, meta)
 
-  for i in ipairs(t) do
-    -- convert tables to tensors recursively
-    if type(t[i]) == 'table' then
-      if getmetatable(t[i]) ~= meta then
-        t[i] = Tensor(t[i])
-      end
-    elseif type(t[i]) ~= 'number' then
-      error(("Tensor contains non number '%s' in position '%s'"):format(t[i], i))
-    end
+function meta:__newindex(k, v)
+  if type(k) == 'number' then
+    -- TODO: allow adding tensors via indexing, and add fancy indexing
+    typecheck(v)
+    self.data[k] = v
+  else
+    self[k] = v
+  end
+end
+
+function meta:__len()
+  return #self.data
+end
+
+function Tensor.new(data, args)
+  -- do nothing if data is already a tensor
+  if getmetatable(data) == meta then
+    return data
   end
 
-  return t
+  local self = {}
+
+  typecheck(data)
+  self.data = data
+
+  if args then
+    self.grad = nil             -- grad of this node, computed after calling backward
+    self.parents = args.parents -- nodes that produced this node, eg. c = a + b, c.parents = {a,b}
+  end
+
+  setmetatable(self, meta)
+  return self
 end
 setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
 local function slice(t, a)
   local ret = {}
   for i=a,#t do
-    ret[i-1] = t[i]
+    ret[i - a + 1] = t[i]
   end
   return ret
 end
 
-function Tensor.all(size, const)
+local function tableAll(size, const)
   local t = {}
   if size == nil or #size == 0 then
     return const
   end
 
   for i=1,size[1] do
-    t[i] = Tensor.all(slice(size, 2), const)
+    t[i] = tableAll(slice(size, 2), const)
   end
 
-  return Tensor(t)
+  return t
+end
+
+function Tensor.all(size, const)
+  return Tensor(tableAll(size, const))
 end
 
 function Tensor.ones(size) return Tensor.all(size, 1) end
@@ -65,6 +104,25 @@ function Tensor:size()
     return Tensor({#self})
   end
 end
+
+
+---------------------- Autodiff ---------------------- 
+
+
+function Tensor:backward()
+
+  self.grad = Tensor.ones(self:size())
+
+  -- assume we are the result of a*b
+  local a, b = table.unpack(self.parents)
+
+  a.grad = b * self.grad
+  b.grad = a * self.grad
+end
+
+
+
+--------------------- Tensor ops --------------------- 
 
 function Tensor.matmul(A, B)
   assert(A:size()[2] == B:size()[1], 'size mismatch')
@@ -115,11 +173,11 @@ end
 
 function Tensor.piecewise(op, a, b)
   assert(#a == #b, ('#a (%d) != #b (%d)'):format(#a, #b))
-  local res = Tensor({})
+  local res = {}
   for i=1,#a do
     res[i] = op(a[i], b[i])
   end
-  return res
+  return Tensor(res)
 end
 
 local piecewiseOp = function(op)
@@ -147,12 +205,17 @@ meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
 -- The result of the call is always converted to a boolean, so we can't return
 -- a tensor then have .all() and .any() like numpy.
 meta.__eq = function(a,b)
-  -- TODO: Use shapes once I add them
   if #a ~= #b then return false end
 
-  local t = piecewiseOp(function(a,b) return a==b end)(a,b)
-  return t:reduce(function(a,b) return a and b end, true)
+  for i=1,#a do
+    -- this recurses if a and b are tensors
+    if a[i] ~= b[i] then
+      return false
+    end
+  end
+  return true
 end
 
 
+T = Tensor
 return Tensor

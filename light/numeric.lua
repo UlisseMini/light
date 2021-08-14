@@ -12,8 +12,6 @@ end
 -- Take the gradient of a function f : R^n -> R
 function numeric.gradient(f)
   return function(xs)
-    -- NOTE: If xs is a tensor and I change indexing ipairs might stop working
-
     local g = {}
 
     for i, x in ipairs(xs) do
