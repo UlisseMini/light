@@ -1,3 +1,3 @@
 # light
 
-Machine learning in pure lua, for doing ML in games.
+Machine learning in pure lua. Think pytorch but a lot slower
