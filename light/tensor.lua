@@ -176,7 +176,7 @@ function Tensor.piecewise(op, a, b)
   for i=1,#a do
     res[i] = op(a[i], b[i])
   end
-  return Tensor(res)
+  return Tensor(res, {parents = {a,b}})
 end
 
 local piecewiseOp = function(op)
