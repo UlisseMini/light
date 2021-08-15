@@ -1,4 +1,5 @@
 local light = dofile('light/init.lua')
+local T = light.Tensor
 
 describe('Tensor', function()
   describe('new', function()
@@ -9,8 +10,11 @@ describe('Tensor', function()
 
     it('disallows nested tensors', function()
       -- TODO: maybe this should be allowed? It might screw up autodiff though
-      local T = light.Tensor
       assert.error(function() T({T({1,2}), T({3,4})}) end)
+    end)
+
+    it('allows scalar tensors', function()
+      assert.not_error(function() light.Tensor(5) end)
     end)
 
     -- TODO
@@ -102,6 +106,12 @@ describe('Tensor', function()
       assert.are_not.equal(x, 3)
       assert.are_not.equal(x, "foo")
     end)
+
+    it('compares equality of scalar tensors', function()
+      assert.equal(T(5).data, 5)
+      assert.equal(T(5), T(5))
+      assert.not_equal(T(5), T(6))
+    end)
   end)
 
   describe('fp', function()
@@ -131,6 +141,12 @@ describe('Tensor', function()
       assert.equal(t + t, t*2)
       assert.equal(t / light.Tensor({2,2,1}), light.Tensor({1/2,2/2,3/1}))
     end)
+
+    it('should apply operations to 0-tensors', function()
+      local t = T(4) / 2
+      assert.equal(T(2), t)
+      assert.equal(t, T(2))
+    end)
   end)
 
   describe('sum', function()
@@ -150,7 +166,7 @@ describe('Tensor', function()
     it('should take the dot product of two vectors', function()
       local t1 = light.Tensor({3,2,1})
       local t2 = light.Tensor({1,1,2})
-      assert.is_equal(t1:dot(t2), 7)
+      assert.is_equal(t1:dot(t2).data, 7)
     end)
 
     it('should raise an error for vectors of different sizes', function()
@@ -264,6 +280,41 @@ describe('Tensor', function()
           assert.is_true(error_b <= 0.0001, ('%s(%s, %s): error_b: %s'):format(name, a, b, error_b))
         end
       end
+    end)
+
+    it('should backprop through dot products', function()
+      local x = light.Tensor({1,2})
+      local y = light.Tensor({2,3})
+      local z = x:dot(y)
+      z:backward()
+      assert.is_equal(x, y.grad)
+      assert.is_equal(y, x.grad)
+    end)
+
+    it('should backprop through dot products and arithmetic', function()
+      local x = light.Tensor({1,2})
+      local y = light.Tensor({2,3})
+
+      local a = x * y
+      local b = x + y
+
+      local q = a:dot(b)
+      local z = 2*q
+
+      z:backward()
+
+      local dz = T(1)
+      local dq = 2 * dz
+      local db = a * dq
+      local da = b * dq
+      local dy = x * da + db
+      local dx = y * da + db
+
+      assert.equal(dq, q.grad)
+      assert.equal(db, b.grad)
+      assert.equal(da, a.grad)
+      assert.equal(dy, y.grad)
+      assert.equal(dx, x.grad)
     end)
   end)
 end)

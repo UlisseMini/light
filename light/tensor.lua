@@ -3,12 +3,16 @@ local Tensor = {
 }
 local meta = {}
 
+local function is_tensor(t)
+  return getmetatable(t) == meta
+end
+
 local function typecheck(data)
   if type(data) == 'table' then
     -- pytorch doesn't allow nested tensors: torch.tensor([tensor([1,2]), tensor([3,4])])
     -- gives an error. I think this is because of autodiff difficulties,
     -- returning a view of a tensor seems the correct approach.
-    if getmetatable(data) == meta then
+    if is_tensor(data) then
       error('nested tensors are not allowed because of issues with autodiff')
     end
 
@@ -21,6 +25,10 @@ local function typecheck(data)
 end
 
 function meta:__tostring()
+  if type(self.data) == 'number' then
+    return 'Tensor(' .. tostring(self.data) .. ')'
+  end
+
   local s = 'Tensor {\n'
   for i in ipairs(self) do
     s = s .. '\t' .. tostring(self[i]) .. ',\n'
@@ -30,7 +38,10 @@ function meta:__tostring()
 end
 
 function meta:__index(k)
-  local x = self.data[k] or Tensor[k]
+  local x = Tensor[k]
+  if x == nil and type(k) == 'number' then
+    x = self.data[k]
+  end
   if type(x) == 'table' then return Tensor(x) end
   return x
 end
@@ -51,7 +62,8 @@ end
 
 function Tensor.new(data, args)
   -- do nothing if data is already a tensor
-  if getmetatable(data) == meta then
+  -- TODO: will this cause issues if args is populated?
+  if is_tensor(data) then
     return data
   end
 
@@ -64,6 +76,7 @@ function Tensor.new(data, args)
   if args and not args.no_grad and Tensor.do_grad then
     self.grad = nil              -- grad of this node, computed after calling backward
     self._parents = args.parents -- nodes that produced this node, eg. c = a + b, parents = {a,b}
+    self._backward = args.backward
   end
 
   setmetatable(self, meta)
@@ -100,11 +113,17 @@ function Tensor.ones(size) return Tensor.all(size, 1) end
 function Tensor.zeros(size) return Tensor.all(size, 0) end
 
 function Tensor:size()
-  if type(self[1]) == 'table' then
-    return Tensor({#self, table.unpack(self[1]:size())})
-  else
-    return Tensor({#self})
+  -- I have to use .data since self is always a table. I could overwrite
+  -- __type but that seems like a bad idea
+  local t = {}
+  if type(self.data) == 'table' then
+    t[1] = #self.data
+    if type(self.data[1]) == 'table' then
+      t = {table.unpack(t), table.unpack(self[1]:size())}
+    end
   end
+
+  return Tensor(t)
 end
 
 
@@ -187,7 +206,13 @@ end
 function Tensor:dot(other)
   assert(#self == #other, 'vectors are of different lengths')
 
-  return (self*other):sum()
+  return Tensor((self*other):sum(),
+    {
+      parents = {self, other},
+      backward = function(a, b)
+        return b, a
+      end
+    })
 end
 
 function Tensor:sum()
@@ -209,6 +234,16 @@ function Tensor:reduce(fn, acc)
   return acc
 end
 
+local function number(t)
+  if type(t) == 'number' then
+    return t
+  elseif type(t) == 'table' and type(t.data) == 'number' then
+    return t.data
+  else
+    return nil
+  end
+end
+
 function Tensor.piecewise(op, a, b)
   assert(#a == #b, ('#a (%d) != #b (%d)'):format(#a, #b))
   local res = {}
@@ -219,14 +254,17 @@ function Tensor.piecewise(op, a, b)
 end
 
 local piecewiseOp = function(op, backward)
-  local forward = function(a,b)
+  local forward = function(a, b)
     local ret
 
-    -- at most one of (a,b) is a number. if both were numbers we would never be called.
-    if type(a) == 'number' then
-      ret = b:map(function(v) return op(a,v) end)
-    elseif type(b) == 'number' then
-      ret = a:map(function(v) return op(v,b) end)
+    local na, nb = number(a), number(b)
+
+    if na ~= nil and nb ~= nil then
+      ret = Tensor(op(na, nb))
+    elseif na ~= nil then
+      ret = b:map(function(v) return op(na,v) end)
+    elseif nb ~= nil then
+      ret = a:map(function(v) return op(v, nb) end)
     else
       -- both are tensors, preform op piecewise
       ret = Tensor.piecewise(op, a, b)
@@ -234,7 +272,7 @@ local piecewiseOp = function(op, backward)
 
     -- todo: respect a.no_grad and b.no_grad, maybe factor the checking logic out to __newindex?
     if Tensor.do_grad then
-      ret._parents = {a,b}
+      ret._parents = {Tensor(a), Tensor(b)}
       ret._backward = backward
     end
 
@@ -257,11 +295,18 @@ meta.__div  = piecewiseOp(function(a,b) return a/b  end, function(a,b) return 1/
 meta.__idiv = piecewiseOp(function(a,b) return a//b end)
 meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
 
--- Lua will only try __eq when the values being compared are both tables.
+-- **IMPORTANT:** Lua will only try __eq when the values being compared are *both tables.*
 -- The result of the call is always converted to a boolean, so we can't return
 -- a tensor then have .all() and .any() like numpy.
 meta.__eq = function(a,b)
-  if #a ~= #b then return false end
+  local na, nb = number(a), number(b)
+  if na ~= nil or nb ~= nil then
+    return na == nb
+  end
+
+  if #a ~= #b then
+    return false
+  end
 
   for i=1,#a do
     -- this recurses if a and b are tensors
