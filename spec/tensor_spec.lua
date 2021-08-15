@@ -258,7 +258,7 @@ describe('Tensor', function()
 
       local N = 42 -- how many random tests to preform on each op
 
-      local ops = {'add', 'sub', 'mul', 'div'}
+      local ops = {'add', 'sub', 'mul', 'div', 'pow'}
       local meta = getmetatable(light.Tensor({1}))
 
       for _, name in ipairs(ops) do

@@ -292,6 +292,7 @@ meta.__add  = piecewiseOp(function(a,b) return a+b  end, function(a,b) return 1,
 meta.__sub  = piecewiseOp(function(a,b) return a-b  end, function(a,b) return 1, -1 end)
 meta.__mul  = piecewiseOp(function(a,b) return a*b  end, function(a,b) return b, a end)
 meta.__div  = piecewiseOp(function(a,b) return a/b  end, function(a,b) return 1/b, -a/b^2 end)
+meta.__pow  = piecewiseOp(function(a,b) return a^b  end, function(a,b) return b*a^(b-1), math.log(a)*a^b end)
 meta.__idiv = piecewiseOp(function(a,b) return a//b end)
 meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
 
