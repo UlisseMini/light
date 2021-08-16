@@ -64,7 +64,11 @@ function Tensor.new(data, args)
   -- do nothing if data is already a tensor
   -- TODO: will this cause issues if args is populated?
   if is_tensor(data) then
-    return data
+    if args then
+      error('Cannot make a tensor from a tensor with args because of ambiguity')
+    else
+      return data -- already a tensor
+    end
   end
 
   local self = {}
@@ -161,16 +165,18 @@ function Tensor:backward()
   while #stack > 0 do
     for i=1, #stack do
       local node = table.remove(stack, 1)
+      local parents = node._parents
 
-      assert(#node._parents == 2, 'currently only supporting ops between two vars')
-      local a, b = table.unpack(node._parents)
-      local da, db = node._backward(a, b)
+      local grads = table.pack(node._backward(table.unpack(parents)))
+      assert(#grads == #parents, ('got %s grads but want %s'):format(#grads, #parents))
 
-      a.grad = (a.grad or 0) + da * node.grad
-      b.grad = (b.grad or 0) + db * node.grad
-
-      if a._parents then table.insert(stack, a) end
-      if b._parents then table.insert(stack, b) end
+      for i, p in ipairs(parents) do
+        -- a.grad = (a.grad or 0) + da * node.grad
+        p.grad = (p.grad or 0) + grads[i] * node.grad
+        if p._parents then
+          table.insert(stack, p)
+        end
+      end
     end
   end
 end
@@ -206,19 +212,13 @@ end
 function Tensor:dot(other)
   assert(#self == #other, 'vectors are of different lengths')
 
-  return Tensor((self*other):sum(),
-    {
-      parents = {self, other},
-      backward = function(a, b)
-        return b, a
-      end
-    })
+  return (self*other):sum()
 end
 
 function Tensor:sum()
   local s = 0
   for _, v in ipairs(self) do s = s + v end
-  return s
+  return Tensor(s, {parents = {self}, backward = function(a) return Tensor.ones(a:size()) end})
 end
 
 function Tensor:map(fn)
@@ -262,7 +262,7 @@ local piecewiseOp = function(op, backward)
     if na ~= nil and nb ~= nil then
       ret = Tensor(op(na, nb))
     elseif na ~= nil then
-      ret = b:map(function(v) return op(na,v) end)
+      ret = b:map(function(v) return op(na, v) end)
     elseif nb ~= nil then
       ret = a:map(function(v) return op(v, nb) end)
     else

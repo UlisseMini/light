@@ -23,13 +23,6 @@ describe('Tensor', function()
     --     local x = light.Tensor({{1,2}, {3,4,5}})
     --   end)
     -- end)
-
-    it('does nothing to tensors', function()
-      local t = light.Tensor({3,2})
-      local t2 = light.Tensor(t)
-      -- reference equality
-      assert.is_true(rawequal(t, t2))
-    end)
   end)
 
   describe('all', function()
@@ -152,7 +145,7 @@ describe('Tensor', function()
   describe('sum', function()
     it('should sum vectors', function()
       local t = light.Tensor({4,3,2})
-      assert.is_equal(t:sum(), 9)
+      assert.is_equal(t:sum(), T(9))
     end)
 
     -- TODO
