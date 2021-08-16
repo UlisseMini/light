@@ -135,7 +135,7 @@ end
 
 -- todo: put this in utils?
 local function finally(fn, cleanup)
-  local ret = table.pack(xpcall(fn, debug.traceback))
+  local ret = table.pack(pcall(fn))
   cleanup()
 
   local status, err = table.unpack(ret)
