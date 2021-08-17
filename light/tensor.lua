@@ -191,18 +191,29 @@ function Tensor.matmul(A, B)
   assert(A:size()[2] == B:size()[1], 'size mismatch')
   -- (n by m) * (m by p) = (n by p)
   local n, m, p = A:size()[1], A:size()[2], B:size()[2]
-
   local res = {}
 
-  -- this is ugly, but it's just saying (AB)ij is dot(row i of A, col j of B)
-  for i=1,n do
-    res[i] = {}
-    for j=1,p do
-      local s = 0
+  if p == nil then
+    -- matrix vector product
+    local x = B
+    for i=1,n do
+      res[i] = 0
       for k=1,m do
-        s = s + A[i][k] * B[k][j]
+        res[i] = res[i] + A[i][k] * x[i]
       end
-      res[i][j] = s
+    end
+  else
+    -- matrix matrix product
+    -- this is ugly, but it's just saying (AB)ij is dot(row i of A, col j of B)
+    for i=1,n do
+      res[i] = {}
+      for j=1,p do
+        local s = 0
+        for k=1,m do
+          s = s + A[i][k] * B[k][j]
+        end
+        res[i][j] = s
+      end
     end
   end
 
