@@ -32,6 +32,22 @@ describe('Tensor', function()
     -- end)
   end)
 
+  describe('stride', function()
+    it('computes stride({2,5}) = {5, 1}', function()
+      local x = T.ones({2, 5})
+      local got = x:stride()
+      local want = T{5, 1}
+      assert.equal(want, got)
+    end)
+
+    it('computes stride({3,2,4}) = {8,4,1}', function()
+      local x = T.ones({3,2,4})
+      local got = x:stride()
+      local want = T{8,4,1}
+      assert.equal(want, got)
+    end)
+  end)
+
   describe('all', function()
     it('creates tensors from a vector shape', function()
       local t = light.Tensor.all({3}, 2)
@@ -225,14 +241,14 @@ describe('Tensor', function()
       assert.not_error(function() v:view{2, 1, 1} end)
     end)
 
-    it('should view a vector as a (m by 1) matrix', function()
-      local got = v:view{2,1}
-      local want = T {
-        {1},
-        {2},
-      }
-      assert.equal(want, got)
-    end)
+    -- it('should view a vector as a (m by 1) matrix', function()
+    --   local got = v:view{2,1}
+    --   local want = T {
+    --     {1},
+    --     {2},
+    --   }
+    --   assert.equal(want, got)
+    -- end)
   end)
 
   describe('matmul', function()
@@ -255,12 +271,12 @@ describe('Tensor', function()
       assert.is_equal(want, got)
     end)
 
-    it('should do matrix vector multiplication', function()
-      local v = light.Tensor({1,1})
-      local got = m_2x2:matmul(v)
-      local want = light.Tensor({3, 7})
-      assert.is_equal(want, got)
-    end)
+    -- it('should do matrix vector multiplication', function()
+    --   local v = light.Tensor({1,1})
+    --   local got = m_2x2:matmul(v)
+    --   local want = light.Tensor({3, 7})
+    --   assert.is_equal(want, got)
+    -- end)
 
     it('should do (2 by 2) matmul (2 by 1)', function()
       local v = T({{1}, {1}})

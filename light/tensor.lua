@@ -1,3 +1,4 @@
+local utils = require('light.utils')
 local Tensor = {
   do_grad = true, -- contextually limit autodiff computation
 }
@@ -74,6 +75,7 @@ function Tensor.new(data, args)
   local self = {}
 
   typecheck(data)
+  self.storage = utils.flatten({data})
   self.data = data
 
   -- args.no_grad = true disables recording of gradient information
@@ -88,14 +90,35 @@ function Tensor.new(data, args)
 end
 setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
-local function slice(t, a)
-  local ret = {}
-  for i=a,#t do
-    ret[i - a + 1] = t[i]
+function Tensor:stride()
+  local stride = {}
+  local size = self:size()
+  local dim = #size
+
+  stride[dim] = 1
+  for i=dim-1,1,-1 do
+    stride[i] = size[i+1]*stride[i+1]
   end
-  return ret
+
+  return Tensor(stride)
 end
 
+function Tensor:size()
+  -- I have to use .data since self is always a table, even for Tensor(1),
+  -- I could overwrite __type for 0-tensors but that seems like a bad idea.
+  local t = {}
+  if type(self.data) == 'table' then
+    t[1] = #self.data
+    if type(self.data[1]) == 'table' then
+      t = {table.unpack(t), table.unpack(self[1]:size())}
+    end
+  end
+
+  return Tensor(t)
+end
+
+-- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
+-- function for recursion, then convert to a tensor in Tensor.all
 local function tableAll(size, const)
   local t = {}
   if size == nil or #size == 0 then
@@ -103,7 +126,7 @@ local function tableAll(size, const)
   end
 
   for i=1,size[1] do
-    t[i] = tableAll(slice(size, 2), const)
+    t[i] = tableAll(utils.slice(size, 2), const)
   end
 
   return t
@@ -116,39 +139,12 @@ end
 function Tensor.ones(size) return Tensor.all(size, 1) end
 function Tensor.zeros(size) return Tensor.all(size, 0) end
 
-function Tensor:size()
-  -- I have to use .data since self is always a table. I could overwrite
-  -- __type but that seems like a bad idea
-  local t = {}
-  if type(self.data) == 'table' then
-    t[1] = #self.data
-    if type(self.data[1]) == 'table' then
-      t = {table.unpack(t), table.unpack(self[1]:size())}
-    end
-  end
-
-  return Tensor(t)
-end
-
-
 ---------------------- Autodiff ---------------------- 
-
--- todo: put this in utils?
-local function finally(fn, cleanup)
-  local ret = table.pack(pcall(fn))
-  cleanup()
-
-  local status, err = table.unpack(ret)
-  if not status then error(err) end
-
-  table.remove(ret, 1)
-  return table.unpack(ret)
-end
 
 function Tensor.no_grad(fn)
   local old = Tensor.do_grad
   Tensor.do_grad = false
-  return finally(fn, function() Tensor.do_grad = old end)
+  return utils.finally(fn, function() Tensor.do_grad = old end)
 end
 
 function Tensor.no_grad_f(fn)
@@ -217,10 +213,8 @@ function Tensor:view(size)
   -- See https://numpy.org/doc/stable/reference/generated/numpy.reshape.html
   -- And https://pytorch.org/docs/stable/generated/torch.Tensor.view.html#torch.Tensor.view
 
-
 end
 
--- FIXME: This is ugly as hell pls rewrite with einsum notation
 function Tensor.matmul(A, B)
   assert(A:size()[2] == B:size()[1], 'size mismatch')
 
@@ -285,16 +279,6 @@ function Tensor:map(fn)
   return res
 end
 
-local function number(t)
-  if type(t) == 'number' then
-    return t
-  elseif type(t) == 'table' and type(t.data) == 'number' then
-    return t.data
-  else
-    return nil
-  end
-end
-
 function Tensor.piecewise(op, a, b)
   assert(#a == #b, ('#a (%d) != #b (%d)'):format(#a, #b))
   local res = {}
@@ -314,7 +298,7 @@ local piecewiseOp = function(op, derivs)
   local forward = function(a, b)
     local ret
 
-    local na, nb = number(a), number(b)
+    local na, nb = utils.number(a), utils.number(b)
 
     if na ~= nil and nb ~= nil then
       ret = Tensor(op(na, nb))
@@ -358,7 +342,7 @@ meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
 -- The result of the call is always converted to a boolean, so we can't return
 -- a tensor then have .all() and .any() like numpy.
 meta.__eq = function(a,b)
-  local na, nb = number(a), number(b)
+  local na, nb = utils.number(a), utils.number(b)
   if na ~= nil or nb ~= nil then
     return na == nb
   end
