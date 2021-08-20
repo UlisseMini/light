@@ -78,9 +78,9 @@ function Tensor.new(data, args)
 
   -- args.no_grad = true disables recording of gradient information
   if args and not args.no_grad and Tensor.do_grad then
-    self.grad = nil              -- grad of this node, computed after calling backward
-    self._parents = args.parents -- nodes that produced this node, eg. c = a + b, parents = {a,b}
-    self._backward = args.backward
+    self.grad = nil               -- grad of this node, computed after calling backward
+    self._parents = args._parents -- nodes that produced this node, eg. c = a + b, parents = {a,b}
+    self._backward = args._backward
   end
 
   setmetatable(self, meta)
@@ -165,14 +165,13 @@ function Tensor:backward()
   while #stack > 0 do
     for i=1, #stack do
       local node = table.remove(stack, 1)
-      local parents = node._parents
 
-      local grads = table.pack(node._backward(table.unpack(parents)))
-      assert(#grads == #parents, ('got %s grads but want %s'):format(#grads, #parents))
+      -- Go backward one layer deeper
+      node:_backward(table.unpack(node._parents))
 
-      for i, p in ipairs(parents) do
-        -- a.grad = (a.grad or 0) + da * node.grad
-        p.grad = (p.grad or 0) + grads[i] * node.grad
+      -- We computed the gradients of node's parents, now we add its parents to the stack
+      -- (but only its parents that are nonconstant, ie. parents that have parents)
+      for i, p in ipairs(node._parents) do
         if p._parents then
           table.insert(stack, p)
         end
@@ -187,37 +186,62 @@ Tensor.backward = Tensor.no_grad_f(Tensor.backward)
 
 --------------------- Tensor ops --------------------- 
 
+function Tensor:T()
+  local res = {}
+
+  for i=1,#self[1] do
+    res[i] = {}
+    for j=1,#self do
+      res[i][j] = self[j][i]
+    end
+  end
+
+  local t = Tensor(res)
+  if self.grad then
+    t.grad = self.grad:T()
+  end
+  t._parents = self._parents -- TODO: transpose?
+  t._backward = self._backward
+  return t
+end
+
+function Tensor:reshape()
+
+end
+
+-- FIXME: This is ugly as hell pls rewrite with einsum notation
 function Tensor.matmul(A, B)
   assert(A:size()[2] == B:size()[1], 'size mismatch')
+
   -- (n by m) * (m by p) = (n by p)
   local n, m, p = A:size()[1], A:size()[2], B:size()[2]
   local res = {}
 
   if p == nil then
-    -- matrix vector product
-    local x = B
-    for i=1,n do
-      res[i] = 0
+    -- vector, reshape to (m, 1)
+    p = 1
+    B = B:reshape({m, p})
+  end
+
+  -- matrix matrix product
+  -- this is ugly, but it's just saying (AB)ij is dot(row i of A, col j of B)
+  for i=1,n do
+    res[i] = {}
+    for j=1,p do
+      local s = 0
       for k=1,m do
-        res[i] = res[i] + A[i][k] * x[i]
+        s = s + A[i][k] * B[k][j]
       end
-    end
-  else
-    -- matrix matrix product
-    -- this is ugly, but it's just saying (AB)ij is dot(row i of A, col j of B)
-    for i=1,n do
-      res[i] = {}
-      for j=1,p do
-        local s = 0
-        for k=1,m do
-          s = s + A[i][k] * B[k][j]
-        end
-        res[i][j] = s
-      end
+      res[i][j] = s
     end
   end
 
-  return Tensor(res)
+  return Tensor(res, {_parents = {A,B}, _backward = function(C,A,B)
+    -- see https://cs231n.github.io/optimization-2/ for the derivation of the
+    -- matrix multiplication derivative
+    A.grad = (A.grad or 0) + C.grad:matmul(B:T())
+    B.grad = (B.grad or 0) + A:T():matmul(C.grad)
+  end})
 end
 
 function Tensor:dot(other)
@@ -229,7 +253,12 @@ end
 function Tensor:sum()
   local s = 0
   for _, v in ipairs(self) do s = s + v end
-  return Tensor(s, {parents = {self}, backward = function(a) return Tensor.ones(a:size()) end})
+  return Tensor(s, {
+      _parents = {self},
+      _backward = function(c, a)
+        a.grad = (a.grad or 0) + Tensor.ones(a:size()) * c.grad
+      end
+    })
 end
 
 function Tensor:map(fn)
@@ -264,7 +293,13 @@ function Tensor.piecewise(op, a, b)
   return Tensor(res)
 end
 
-local piecewiseOp = function(op, backward)
+local piecewiseOp = function(op, derivs)
+  local function backward(c, a, b)
+    local da, db = derivs(a, b)
+    a.grad = (a.grad or 0) + da * c.grad
+    b.grad = (b.grad or 0) + db * c.grad
+  end
+
   local forward = function(a, b)
     local ret
 
@@ -290,7 +325,8 @@ local piecewiseOp = function(op, backward)
     return ret
   end
 
-  local self = {forward = forward, backward = backward, op = op}
+  -- This table is here for testing, otherwise we could just return forward.
+  local self = {forward = forward, op = op, derivs = derivs}
   setmetatable(self, {__call = function(_, ...) return forward(...) end})
 
   return self

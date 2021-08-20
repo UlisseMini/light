@@ -170,6 +170,41 @@ describe('Tensor', function()
     end)
   end)
 
+  describe('transpose', function()
+    local m_3x2 = light.Tensor({{1,2}, {3,4}, {5,6}})
+
+    it('should multiply', function()
+      local got = m_3x2:T():matmul(m_3x2)
+      local want = T {
+        {35, 44},
+        {44, 56}
+      }
+      assert.equal(want, got)
+    end)
+
+    it('should deal with sizes properly', function()
+      local m_2x3 = m_3x2:T()
+      assert.equal({2,3}, m_2x3:size())
+    end)
+
+    -- TODO: finish tests
+    it('should return a mutable view', function()
+      -- changing the transpose should change the original matrix (like in numpy)
+
+    end)
+
+    -- should it? not sure
+    it('should preserve parents', function()
+
+    end)
+
+    it('should preserve gradients', function()
+      local A = light.Tensor({{1,2}, {3,4}, {5,6}})
+      A.grad = T{{1,2}, {3,4}, {5,6}}
+      assert.equal(A.grad:T(), A:T().grad)
+    end)
+  end)
+
   describe('matmul', function()
     local m_2x2 = light.Tensor({{1,2}, {3,4}})
     local m_3x3 = light.Tensor({{1,2,3}, {3,4,5}, {5,3,2}})
@@ -271,7 +306,7 @@ describe('Tensor', function()
           -- we shift by 1 so that division doesn't blow up
           a, b = math.random(), math.random() + 1
 
-          local da, db = op.backward(a, b)
+          local da, db = op.derivs(a, b)
           local numeric_da, numeric_db = partial_a(a), partial_b(b)
 
           local error_a, error_b = math.abs(numeric_da - da), math.abs(numeric_db - db)
@@ -323,6 +358,20 @@ describe('Tensor', function()
       assert.equal(dy, y.grad)
       assert.equal(dx, x.grad)
     end)
+
+    -- it('should backprop through matrix multiplication', function()
+    --   local A = T({{1,2}, {3,4}})
+    --   local B = T({{1,7}, {2,5}})
+    --   local x = T({1,1})
+
+    --   local C = A:matmul(B)
+    --   local y = C:matmul(x)
+    --   local z = y:sum()
+
+    --   z:backward()
+    --   assert.equal(T({1, 1}), y.grad)
+    --   assert.equal(T({}), C.grad)
+    -- end)
   end)
 end)
 
