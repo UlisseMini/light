@@ -1,4 +1,4 @@
-local light = dofile('light/init.lua')
+local light = require('light.init')
 local T = light.Tensor
 
 
@@ -158,6 +158,13 @@ describe('Tensor', function()
     -- end)
   end)
 
+  describe('prod', function()
+    it('should take the product of vectors', function()
+      local t = T {1,2,3}
+      assert.equal(T(6), t:prod())
+    end)
+  end)
+
   describe('dot', function()
     it('should take the dot product of two vectors', function()
       local t1 = light.Tensor({3,2,1})
@@ -188,10 +195,8 @@ describe('Tensor', function()
       assert.equal({2,3}, m_2x3:size())
     end)
 
-    -- TODO: finish tests
     it('should return a mutable view', function()
       -- changing the transpose should change the original matrix (like in numpy)
-
     end)
 
     -- should it? not sure
@@ -209,17 +214,25 @@ describe('Tensor', function()
   describe('view', function()
     local v = T {1,2}
 
-    it('should give size mismatch errors', function()
-      assert.error(function() v:view(3,2) end)
-      assert.error(function() v:view(1,1) end)
-      assert.error(function() m_2x2:view(3,2) end)
-      assert.error(function() m_3x2:view(1,3) end)
-      assert.error(function() v:view(2,-1) end)
-      assert.error(function() v:view(0,2) end)
+    it('should check for size mismatch errors', function()
+      assert.error(function()     v:view{3,2} end)
+      assert.error(function()     v:view{1,1} end)
+      assert.error(function()     m_2x2:view{3,2} end)
+      assert.error(function()     m_3x2:view{1,3} end)
+      assert.error(function()     v:view{2,-1} end)
+      assert.error(function()     v:view{0,2} end)
+      assert.not_error(function() v:view{2} end)
+      assert.not_error(function() v:view{2, 1, 1} end)
     end)
 
-    -- it('should view a vector as a (m by 1) matrix', function()
-    -- end)
+    it('should view a vector as a (m by 1) matrix', function()
+      local got = v:view{2,1}
+      local want = T {
+        {1},
+        {2},
+      }
+      assert.equal(want, got)
+    end)
   end)
 
   describe('matmul', function()
@@ -368,6 +381,14 @@ describe('Tensor', function()
       z:backward()
       assert.equal(x.grad, T({1, 1}))
     end)
+
+    -- TODO
+    -- it('should backprop through products', function()
+    --   local x = light.Tensor({1,2})
+    --   local z = x:prod()
+    --   z:backward()
+    --   assert.equal(x.grad, T({2, 1}))
+    -- end)
 
     it('should backprop through dot products and arithmetic', function()
       local x = light.Tensor({1,2})

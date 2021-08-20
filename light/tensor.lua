@@ -206,7 +206,17 @@ function Tensor:T()
 end
 
 function Tensor:view(size)
+  size = Tensor(size)
   local our_size = self:size()
+
+  local a, b = our_size:prod(), size:prod()
+  if a ~= b then
+    error(('size mismatch, tensor with %s items cannot be viewed as if it had %s items'):format(a, b))
+  end
+
+  -- See https://numpy.org/doc/stable/reference/generated/numpy.reshape.html
+  -- And https://pytorch.org/docs/stable/generated/torch.Tensor.view.html#torch.Tensor.view
+
 
 end
 
@@ -260,6 +270,13 @@ function Tensor:sum()
         a.grad = (a.grad or 0) + Tensor.ones(a:size()) * c.grad
       end
     })
+end
+
+function Tensor:prod()
+  local ret = 1
+  for _, v in ipairs(self) do ret = ret * v end
+
+  return Tensor(ret)
 end
 
 function Tensor:map(fn)
