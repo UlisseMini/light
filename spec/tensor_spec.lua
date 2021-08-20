@@ -36,15 +36,15 @@ describe('Tensor', function()
     it('computes stride({2,5}) = {5, 1}', function()
       local x = T.ones({2, 5})
       local got = x:stride()
-      local want = T{5, 1}
-      assert.equal(want, got)
+      local want = {5, 1}
+      assert.are.same(want, got)
     end)
 
     it('computes stride({3,2,4}) = {8,4,1}', function()
       local x = T.ones({3,2,4})
       local got = x:stride()
-      local want = T{8,4,1}
-      assert.equal(want, got)
+      local want = {8,4,1}
+      assert.are.same(want, got)
     end)
   end)
 
@@ -63,12 +63,12 @@ describe('Tensor', function()
   describe('size', function()
     it('describes an array as a 1-tensor', function()
       local x = light.Tensor({1,2,3})
-      assert.equal(x:size(), {3})
+      assert.are.same({3}, x:size())
     end)
 
     it('describes a matrix as a 2-tensor', function()
       local x = light.Tensor({{1,2,3}, {3,4,5}})
-      assert.equal(x:size(), {2, 3})
+      assert.are.same({2, 3}, x:size())
     end)
   end)
 
@@ -208,7 +208,7 @@ describe('Tensor', function()
 
     it('should deal with sizes properly', function()
       local m_2x3 = m_3x2:T()
-      assert.equal({2,3}, m_2x3:size())
+      assert.are.same({2,3}, m_2x3:size())
     end)
 
     it('should return a mutable view', function()

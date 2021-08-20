@@ -100,7 +100,7 @@ function Tensor:stride()
     stride[i] = size[i+1]*stride[i+1]
   end
 
-  return Tensor(stride)
+  return stride
 end
 
 function Tensor:size()
@@ -114,7 +114,7 @@ function Tensor:size()
     end
   end
 
-  return Tensor(t)
+  return t
 end
 
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
@@ -203,7 +203,7 @@ end
 
 function Tensor:view(size)
   size = Tensor(size)
-  local our_size = self:size()
+  local our_size = Tensor(self:size())
 
   local a, b = our_size:prod(), size:prod()
   if a ~= b then
