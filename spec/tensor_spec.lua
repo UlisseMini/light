@@ -1,6 +1,13 @@
 local light = dofile('light/init.lua')
 local T = light.Tensor
 
+
+local m_2x2 = light.Tensor({{1,2}, {3,4}})
+local m_3x3 = light.Tensor({{1,2,3}, {3,4,5}, {5,3,2}})
+local m_3x2 = light.Tensor({{1,2}, {3,4}, {5,6}})
+local m_2x3 = light.Tensor({{1,2,3}, {4,5,6}})
+
+
 describe('Tensor', function()
   describe('new', function()
     it('rejects tensors with non numbers', function()
@@ -111,10 +118,6 @@ describe('Tensor', function()
     local t = light.Tensor({4,3,2})
     local t2 = light.Tensor({{1,2}, {3,4}})
 
-    it('should reduce', function()
-      assert.is_equal(t[1]*t[2]*t[3], t:reduce(function(acc, curr) return acc*curr end, 1))
-    end)
-
     describe('map', function()
       it('should map over 1-tensors', function()
         local res = t:map(function(x) return x+1 end)
@@ -171,8 +174,6 @@ describe('Tensor', function()
   end)
 
   describe('transpose', function()
-    local m_3x2 = light.Tensor({{1,2}, {3,4}, {5,6}})
-
     it('should multiply', function()
       local got = m_3x2:T():matmul(m_3x2)
       local want = T {
@@ -205,12 +206,23 @@ describe('Tensor', function()
     end)
   end)
 
-  describe('matmul', function()
-    local m_2x2 = light.Tensor({{1,2}, {3,4}})
-    local m_3x3 = light.Tensor({{1,2,3}, {3,4,5}, {5,3,2}})
-    local m_3x2 = light.Tensor({{1,2}, {3,4}, {5,6}})
-    local m_2x3 = light.Tensor({{1,2,3}, {4,5,6}})
+  describe('view', function()
+    local v = T {1,2}
 
+    it('should give size mismatch errors', function()
+      assert.error(function() v:view(3,2) end)
+      assert.error(function() v:view(1,1) end)
+      assert.error(function() m_2x2:view(3,2) end)
+      assert.error(function() m_3x2:view(1,3) end)
+      assert.error(function() v:view(2,-1) end)
+      assert.error(function() v:view(0,2) end)
+    end)
+
+    -- it('should view a vector as a (m by 1) matrix', function()
+    -- end)
+  end)
+
+  describe('matmul', function()
     it('should raise an error when the matrix sizes do not match', function()
       assert.error(function() m_2x2:matmul(m_3x3) end)
       assert.error(function() m_3x3:matmul(m_2x2) end)
@@ -235,6 +247,30 @@ describe('Tensor', function()
       local got = m_2x2:matmul(v)
       local want = light.Tensor({3, 7})
       assert.is_equal(want, got)
+    end)
+
+    it('should do (2 by 2) matmul (2 by 1)', function()
+      local v = T({{1}, {1}})
+      local got = m_2x2:matmul(v)
+      local want = T({{3}, {7}})
+      assert.is_equal(want, got)
+    end)
+
+    it('should do outer products (2 by 1) * (1 by 2) = (2 by 2)', function()
+      local v = T {
+        {1},
+        {2},
+      }
+      local w = T {
+        {3, 4},
+      }
+      local want = T {
+        {3, 4},
+        {6, 8},
+      }
+      local got = v:matmul(w)
+
+      assert.equal(want, got)
     end)
   end)
 

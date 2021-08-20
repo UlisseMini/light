@@ -205,7 +205,8 @@ function Tensor:T()
   return t
 end
 
-function Tensor:reshape()
+function Tensor:view(size)
+  local our_size = self:size()
 
 end
 
@@ -218,9 +219,9 @@ function Tensor.matmul(A, B)
   local res = {}
 
   if p == nil then
-    -- vector, reshape to (m, 1)
+    -- We got a vector, view it as a {m, 1} matrix.
     p = 1
-    B = B:reshape({m, p})
+    B = B:view({m, p})
   end
 
   -- matrix matrix product
@@ -265,13 +266,6 @@ function Tensor:map(fn)
   local res = Tensor({})
   for i,v in ipairs(self) do res[i] = fn(v) end
   return res
-end
-
-function Tensor:reduce(fn, acc)
-  for _, curr in ipairs(self) do
-    acc = fn(acc, curr)
-  end
-  return acc
 end
 
 local function number(t)
