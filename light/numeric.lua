@@ -1,4 +1,3 @@
-local Tensor = require('light.tensor')
 local numeric = {}
 local h = 0.001
 
@@ -22,8 +21,7 @@ function numeric.gradient(f)
 
       g[i] = (b - a) / (2*h)
     end
-
-    return Tensor(g)
+    return g
   end
 end
 

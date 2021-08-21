@@ -1,4 +1,4 @@
-local numeric = require('light.init').numeric
+local numeric = require('light.numeric')
 
 local fns = {
   ['x^2'] = function(x) return x^2 end,

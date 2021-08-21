@@ -50,16 +50,21 @@ describe('Tensor', function()
   describe('all', function()
     it('creates tensors from a vector shape', function()
       local t = light.Tensor.all({3}, 2)
-      assert.equal({2,2,2}, t)
+      assert.equal(T{2,2,2}, t)
     end)
 
     it('creates tensors from a matrix shape', function()
       local t = light.Tensor.all({2,3}, 1)
-      assert.equal({{1,1,1}, {1,1,1}}, t)
+      assert.equal(T{{1,1,1}, {1,1,1}}, t)
     end)
   end)
 
   describe('size', function()
+    describe('gives a scalar tensor shape {}', function()
+      local x = T(1)
+      assert.are.same({}, x:size())
+    end)
+
     it('describes an array as a 1-tensor', function()
       local x = light.Tensor({1,2,3})
       assert.are.same({3}, x:size())
@@ -78,10 +83,14 @@ describe('Tensor', function()
       t = light.Tensor({1,2})
     end)
 
-    it('reads numbers with indexing', function()
-      assert.equal(1, t[1])
-      assert.equal(2, t[2])
-      assert.equal(3, m_2x2[2][1])
+    it('reads numbers', function()
+      assert.equal(1, t[1]:item())
+      assert.equal(2, t[2]:item())
+
+      assert.equal(1, m_2x2[1][1]:item())
+      assert.equal(2, m_2x2[1][2]:item())
+      assert.equal(3, m_2x2[2][1]:item())
+      assert.equal(4, m_2x2[2][2]:item())
     end)
 
     it('returns nil when an index is out of bounds', function()
@@ -95,6 +104,13 @@ describe('Tensor', function()
     it('allows index mutation', function()
       t[1] = 2
       assert.is_equal(t, light.Tensor({2,2}))
+    end)
+
+    it('returns a scalar tensor reference to each number', function()
+      local x = t[1]
+      assert.equal(x:item(), 1)
+      t[1] = 2
+      assert.equal(x:item(), 2)
     end)
   end)
 
@@ -176,7 +192,7 @@ describe('Tensor', function()
   describe('sum', function()
     it('should sum vectors', function()
       local t = light.Tensor({4,3,2})
-      assert.is_equal(t:sum(), T(9))
+      assert.is_true(T(9) == t:sum())
     end)
 
     -- TODO
@@ -407,7 +423,7 @@ describe('Tensor', function()
       local x = light.Tensor({1,2})
       local z = x:sum()
       z:backward()
-      assert.equal(x.grad, T({1, 1}))
+      assert.equal(T{1, 1}, x.grad)
     end)
 
     -- TODO

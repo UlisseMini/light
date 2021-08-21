@@ -66,4 +66,12 @@ function utils.pp(t, ident)
   end
 end
 
+function utils.p(...)
+  local s = ''
+  for _, v in ipairs({...}) do
+    s = s .. utils.pp(v) .. '\t'
+  end
+  print(s)
+end
+
 return utils

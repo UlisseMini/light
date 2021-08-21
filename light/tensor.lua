@@ -26,7 +26,7 @@ end
 function meta:__index(k)
   if type(k) == 'number' then
     if self._type == 'number' then
-      error(('cannot index a scalar tensor %s at %s'):format(self))
+      error(('cannot index a scalar tensor %s at %s'):format(self, k))
     end
 
     assert(k ~= 0, '0 is an invalid index [hint: indices start at 1]')
@@ -34,16 +34,10 @@ function meta:__index(k)
       return nil -- index out of bounds
     end
 
-    -- print('stride: '..utils.pp(self._stride)..' offset: '..tostring(self._offset))
-    if #self._stride == 1 then
-      assert(self._stride[1] == 1)
-      return self.storage[k + self._offset]
-    else
-      local offset = self._stride[1] * (k - 1) 
-      local size = utils.slice(self._size, 2)
-      local stride = utils.slice(self._stride, 2)
-      return Tensor._new(self.storage, size, stride, offset)
-    end
+    local offset = self._offset + self._stride[1] * (k - 1)
+    local size = utils.slice(self._size, 2)
+    local stride = utils.slice(self._stride, 2)
+    return Tensor._new(self.storage, size, stride, offset)
   else
     return Tensor[k]
   end
@@ -90,7 +84,6 @@ function Tensor.new(data, args)
   local size = Tensor._size(data)
   local stride = Tensor._stride(size)
   local self = Tensor._new(storage, size, stride)
-  self._type = type(data)
 
   if args and Tensor.do_grad then
     self.grad = nil               -- grad of this node, computed after calling backward
@@ -111,6 +104,12 @@ function Tensor._new(storage, size, stride, offset)
   self._stride = stride
   self._size = size
   self._offset = offset or 0
+  if #size == 0 then
+    self._type = 'number'
+  else
+    -- tensor might confuse people, since 'number' is the same as lua type
+    self._type = 'table'
+  end
 
   setmetatable(self, meta)
   return self
@@ -151,7 +150,7 @@ end
 function Tensor:item()
   assert(self._type == 'number', 'cannot get item of a non scalar tensor')
 
-  return self.storage[1]
+  return self.storage[1 + self._offset]
 end
 
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
@@ -219,13 +218,14 @@ Tensor.backward = Tensor.no_grad_f(Tensor.backward)
 
 --------------------- Tensor ops --------------------- 
 
+-- TODO: return a view, add tests for mutation to ensure its a view
 function Tensor:T()
   local res = {}
 
   for i=1,#self[1] do
     res[i] = {}
     for j=1,#self do
-      res[i][j] = self[j][i]
+      res[i][j] = self[j][i]:item()
     end
   end
 
@@ -238,6 +238,7 @@ function Tensor:T()
   return t
 end
 
+-- TODO: Implement
 function Tensor:view(size)
   size = Tensor(size)
   local our_size = Tensor(self:size())
@@ -272,7 +273,7 @@ function Tensor.matmul(A, B)
     for j=1,p do
       local s = 0
       for k=1,m do
-        s = s + A[i][k] * B[k][j]
+        s = s + A[i][k]:item() * B[k][j]:item()
       end
       res[i][j] = s
     end
@@ -294,7 +295,7 @@ end
 
 function Tensor:sum()
   local s = 0
-  for _, v in ipairs(self) do s = s + v end
+  for _, v in ipairs(self) do s = s + v:item() end
   return Tensor(s, {
       _parents = {self},
       _backward = function(c, a)
@@ -312,7 +313,9 @@ end
 
 function Tensor:map(fn)
   local res = {}
-  for i,v in ipairs(self) do res[i] = fn(v) end
+  for _, v in ipairs(self) do
+    table.insert(res, fn(v):item())
+  end
   return Tensor(res)
 end
 
@@ -320,7 +323,7 @@ function Tensor.piecewise(op, a, b)
   assert(#a == #b, ('#a (%d) != #b (%d)'):format(#a, #b))
   local res = {}
   for i=1,#a do
-    res[i] = op(a[i], b[i])
+    res[i] = op(a[i]:item(), b[i]:item())
   end
   return Tensor(res)
 end
@@ -379,10 +382,12 @@ meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
 -- The result of the call is always converted to a boolean, so we can't return
 -- a tensor then have .all() and .any() like numpy.
 meta.__eq = function(a,b)
-  local na, nb = utils.number(a), utils.number(b)
-  if na ~= nil or nb ~= nil then
-    return na == nb
+  if a._type ~= b._type then
+    return false
+  elseif a._type == 'number' and b._type == 'number' then
+    return a:item() == b:item()
   end
+  assert(a._type == 'table' and b._type == 'table')
 
   if #a ~= #b then
     return false
@@ -397,17 +402,23 @@ meta.__eq = function(a,b)
   return true
 end
 
-function meta:__tostring()
-  if type(self.data) == 'number' then
-    return 'Tensor(' .. tostring(self.data) .. ')'
+function Tensor:tostring()
+  local s = ''
+  if self._type == 'number' then
+    s = s .. self:item()
+  else
+    s = s .. '{'
+    for i, v in ipairs(self) do
+      s = s .. v:tostring() .. ', '
+    end
+    s = s:sub(1, #s-2) .. '}'
   end
 
-  local s = 'Tensor {\n'
-  for i in ipairs(self) do
-    s = s .. '\t' .. tostring(self[i]) .. ',\n'
-  end
-  s = s .. '}'
   return s
+end
+
+function meta:__tostring()
+  return self:tostring()
 end
 
 return Tensor
