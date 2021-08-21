@@ -10,9 +10,7 @@ end
 
 local function typecheck(data)
   if type(data) == 'table' then
-    -- pytorch doesn't allow nested tensors: torch.tensor([tensor([1,2]), tensor([3,4])])
-    -- gives an error. I think this is because of autodiff difficulties,
-    -- returning a view of a tensor seems the correct approach.
+    -- pytorch also doesn't allow nested tensors
     if is_tensor(data) then
       error('nested tensors are not allowed because of issues with autodiff')
     end
