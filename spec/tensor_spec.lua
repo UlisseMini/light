@@ -72,7 +72,6 @@ describe('Tensor', function()
     end)
   end)
 
-  --[[ TODO
   describe('indexing', function()
     local t
     before_each(function()
@@ -80,42 +79,54 @@ describe('Tensor', function()
       t = light.Tensor({1,2})
     end)
 
-    it('raises an error when an index is out of bounds', function()
-      assert.error(function() local x = t[3] end)
+    it('reads numbers with indexing', function()
+      assert.equal(1, t[1])
+      assert.equal(2, t[2])
+      assert.equal(3, m_2x2[2][1])
     end)
 
+    it('returns nil when an index is out of bounds', function()
+      assert.equal(nil, t[5])
+    end)
+    
     it('raises an error when setting an index out of bounds', function()
       assert.error(function() t[3] = 4 end)
     end)
 
-    it('allows normal mutation', function()
+    it('allows index mutation', function()
       t[1] = 2
       assert.is_equal(t, light.Tensor({2,2}))
     end)
   end)
-  --]]
 
   describe('equality', function()
     local x = light.Tensor({3,2,1})
 
+    it('should handle misshapen tensors', function()
+      assert.is_false(T{} == T{1})
+      assert.is_false(T{} == T(1))
+      assert.is_false(T{1,2} == T(1))
+      assert.is_false(T{{}} == T{1})
+    end)
+
     it('should declare identical objects equal', function()
-      assert.is_equal(x, x)
+      assert.is_true(x == x)
     end)
 
     it('should declare equal objects equal', function()
       local x2 = light.Tensor({3,2,1})
-      assert.is_equal(x, x2)
+      assert.is_true(x == x2)
     end)
 
     it('should declare not equal objects not equal', function()
       local x2 = light.Tensor({3,5,1})
-      assert.are_not.equal(x, x2)
+      assert.is_true(x ~= x2)
     end)
 
     it('should declare tensors with different dimensions not equal', function()
       local y = light.Tensor({3,2,1,1})
-      assert.are_not.equal(x, y)
-      assert.are_not.equal(y, x)
+      assert.is_true(x ~= y)
+      assert.is_true(y ~= x)
     end)
 
     it('should declare objects of different types not equal', function()
@@ -138,6 +149,9 @@ describe('Tensor', function()
       it('should map over 1-tensors', function()
         local res = t:map(function(x) return x+1 end)
         assert.is_equal(res, t+1)
+
+        local res = t:map(function(x) return x*2 end)
+        assert.equal(res, T{8,6,4})
       end)
     end)
   end)

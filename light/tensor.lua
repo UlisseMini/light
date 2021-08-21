@@ -25,32 +25,39 @@ local function typecheck(data)
   end
 end
 
-function meta:__tostring()
-  if type(self.data) == 'number' then
-    return 'Tensor(' .. tostring(self.data) .. ')'
-  end
-
-  local s = 'Tensor {\n'
-  for i in ipairs(self) do
-    s = s .. '\t' .. tostring(self[i]) .. ',\n'
-  end
-  s = s .. '}'
-  return s
-end
-
 function meta:__index(k)
-  local x = Tensor[k]
-  if x == nil and type(k) == 'number' then
+  if type(k) == 'number' then
+    if k > #self then
+      return nil -- index out of bounds
+    end
+
+    -- Stride was messing up equality after mutation since storage isn't
+    -- mutated yet.
+    -- if #self._stride == 1 then
+    --   assert(self._stride[1] == 1, 'stride of an array should be one')
+    --   x = self.storage[k]
+    -- else
+    --   x = self.data[k]
+    -- end
     x = self.data[k]
+
+    -- FIXME: Return tensor for numbers too (requires changes elsewhere in the code)
+    if type(x) == 'table' then
+      return Tensor(x)
+    end
+  else
+    return Tensor[k]
   end
-  if type(x) == 'table' then return Tensor(x) end
+
   return x
 end
 
 function meta:__newindex(k, v)
   if type(k) == 'number' then
-    -- TODO: allow adding tensors via indexing, and add fancy indexing
     typecheck(v)
+    if k > #self then
+      error(('index out of bounds, len %s but attempt to set self[%s] = %s'):format(#self.data, k, v))
+    end
     self.data[k] = v
   else
     rawset(self, k, v)
@@ -58,8 +65,12 @@ function meta:__newindex(k, v)
 end
 
 function meta:__len()
+  if type(self.data) == 'number' then
+    error('cannot get length of 0-d Tensor ' .. tostring(self.data))
+  end
   return #self.data
 end
+
 
 function Tensor.new(data, args)
   -- do nothing if data is already a tensor
@@ -72,27 +83,39 @@ function Tensor.new(data, args)
     end
   end
 
-  local self = {}
-
   typecheck(data)
-  self.storage = utils.flatten({data})
-  self.data = data
+  local storage = utils.flatten({data})
+  local size = Tensor._size(data)
+  local stride = Tensor._stride(size)
+  local self = Tensor._new(storage, size, stride)
 
-  -- args.no_grad = true disables recording of gradient information
-  if args and not args.no_grad and Tensor.do_grad then
+  self.data = data -- TODO: get rid of this
+
+  if args and Tensor.do_grad then
     self.grad = nil               -- grad of this node, computed after calling backward
     self._parents = args._parents -- nodes that produced this node, eg. c = a + b, parents = {a,b}
     self._backward = args._backward
   end
 
-  setmetatable(self, meta)
   return self
 end
 setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
-function Tensor:stride()
+function Tensor._new(storage, size, stride)
+  assert(type(size) == 'table', 'want table size got ' .. type(size))
+  assert(type(stride) == 'table', 'want table stride got ' .. type(stride))
+
+  local self = {}
+  self.storage = storage
+  self._stride = stride
+  self._size = size
+
+  setmetatable(self, meta)
+  return self
+end
+
+function Tensor._stride(size)
   local stride = {}
-  local size = self:size()
   local dim = #size
 
   stride[dim] = 1
@@ -103,18 +126,23 @@ function Tensor:stride()
   return stride
 end
 
-function Tensor:size()
-  -- I have to use .data since self is always a table, even for Tensor(1),
-  -- I could overwrite __type for 0-tensors but that seems like a bad idea.
-  local t = {}
-  if type(self.data) == 'table' then
-    t[1] = #self.data
-    if type(self.data[1]) == 'table' then
-      t = {table.unpack(t), table.unpack(self[1]:size())}
+function Tensor:stride()
+  return self._stride
+end
+
+function Tensor._size(t)
+  local size = {}
+  if type(t) == 'table' then
+    size[1] = #t
+    if type(t[1]) == 'table' then
+      size = utils.concat(size, Tensor._size(t[1]))
     end
   end
+  return size
+end
 
-  return t
+function Tensor:size()
+  return self._size
 end
 
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
@@ -274,9 +302,9 @@ function Tensor:prod()
 end
 
 function Tensor:map(fn)
-  local res = Tensor({})
+  local res = {}
   for i,v in ipairs(self) do res[i] = fn(v) end
-  return res
+  return Tensor(res)
 end
 
 function Tensor.piecewise(op, a, b)
@@ -358,6 +386,19 @@ meta.__eq = function(a,b)
     end
   end
   return true
+end
+
+function meta:__tostring()
+  if type(self.data) == 'number' then
+    return 'Tensor(' .. tostring(self.data) .. ')'
+  end
+
+  local s = 'Tensor {\n'
+  for i in ipairs(self) do
+    s = s .. '\t' .. tostring(self[i]) .. ',\n'
+  end
+  s = s .. '}'
+  return s
 end
 
 return Tensor
