@@ -27,54 +27,58 @@ end
 
 function meta:__index(k)
   if type(k) == 'number' then
+    if self._type == 'number' then
+      error(('cannot index a scalar tensor %s at %s'):format(self))
+    end
+
+    assert(k ~= 0, '0 is an invalid index [hint: indices start at 1]')
     if k > #self then
       return nil -- index out of bounds
     end
 
-    -- Stride was messing up equality after mutation since storage isn't
-    -- mutated yet.
-    -- if #self._stride == 1 then
-    --   assert(self._stride[1] == 1, 'stride of an array should be one')
-    --   x = self.storage[k]
-    -- else
-    --   x = self.data[k]
-    -- end
-    x = self.data[k]
-
-    -- FIXME: Return tensor for numbers too (requires changes elsewhere in the code)
-    if type(x) == 'table' then
-      return Tensor(x)
+    -- print('stride: '..utils.pp(self._stride)..' offset: '..tostring(self._offset))
+    if #self._stride == 1 then
+      assert(self._stride[1] == 1)
+      return self.storage[k + self._offset]
+    else
+      local offset = self._stride[1] * (k - 1) 
+      local size = utils.slice(self._size, 2)
+      local stride = utils.slice(self._stride, 2)
+      return Tensor._new(self.storage, size, stride, offset)
     end
   else
     return Tensor[k]
   end
-
-  return x
 end
 
 function meta:__newindex(k, v)
   if type(k) == 'number' then
-    typecheck(v)
+    assert(self._type ~= 'number', 'cannot call __newindex on a scalar tensor')
+
+    assert(type(v) == 'number', 'not supporting __newindex with tables yet')
+    assert(#self._size == 1, ('not supporting __newindex on %s-dim tensors yet'):format(#self._size))
+
     if k > #self then
       error(('index out of bounds, len %s but attempt to set self[%s] = %s'):format(#self.data, k, v))
     end
-    self.data[k] = v
+
+    self.storage[self._offset + self._stride[1]*k] = v
   else
     rawset(self, k, v)
   end
 end
 
 function meta:__len()
-  if type(self.data) == 'number' then
-    error('cannot get length of 0-d Tensor ' .. tostring(self.data))
+  if self._type == 'number' then
+    assert(#self.storage == 1, 'want length of 1 for scalar tensor, got ' .. tostring(#self.storage))
+    error(('attempt to get len of 0-dim tensor %s'):format(self.storage[1]))
   end
-  return #self.data
+
+  return self._size[1] or 0 -- also a hack to deal with {}
 end
 
 
 function Tensor.new(data, args)
-  -- do nothing if data is already a tensor
-  -- TODO: will this cause issues if args is populated?
   if is_tensor(data) then
     if args then
       error('Cannot make a tensor from a tensor with args because of ambiguity')
@@ -88,8 +92,7 @@ function Tensor.new(data, args)
   local size = Tensor._size(data)
   local stride = Tensor._stride(size)
   local self = Tensor._new(storage, size, stride)
-
-  self.data = data -- TODO: get rid of this
+  self._type = type(data)
 
   if args and Tensor.do_grad then
     self.grad = nil               -- grad of this node, computed after calling backward
@@ -101,7 +104,7 @@ function Tensor.new(data, args)
 end
 setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
-function Tensor._new(storage, size, stride)
+function Tensor._new(storage, size, stride, offset)
   assert(type(size) == 'table', 'want table size got ' .. type(size))
   assert(type(stride) == 'table', 'want table stride got ' .. type(stride))
 
@@ -109,6 +112,7 @@ function Tensor._new(storage, size, stride)
   self.storage = storage
   self._stride = stride
   self._size = size
+  self._offset = offset or 0
 
   setmetatable(self, meta)
   return self
@@ -125,6 +129,7 @@ function Tensor._stride(size)
 
   return stride
 end
+
 
 function Tensor:stride()
   return self._stride
@@ -143,6 +148,12 @@ end
 
 function Tensor:size()
   return self._size
+end
+
+function Tensor:item()
+  assert(self._type == 'number', 'cannot get item of a non scalar tensor')
+
+  return self.storage[1]
 end
 
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table

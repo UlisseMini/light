@@ -47,8 +47,8 @@ end
 function utils.number(t)
   if type(t) == 'number' then
     return t
-  elseif type(t) == 'table' and type(t.data) == 'number' then
-    return t.data
+  elseif type(t) == 'table' and t._type == 'number' then
+    return t:item()
   else
     return nil
   end
