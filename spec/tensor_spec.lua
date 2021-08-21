@@ -16,7 +16,6 @@ describe('Tensor', function()
     end)
 
     it('disallows nested tensors', function()
-      -- TODO: maybe this should be allowed? It might screw up autodiff though
       assert.error(function() T({T({1,2}), T({3,4})}) end)
     end)
 
