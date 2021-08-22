@@ -1,4 +1,4 @@
-local light = require('light.init')
+local light = require('light')
 local T = light.Tensor
 
 
