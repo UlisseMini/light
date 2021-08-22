@@ -407,23 +407,8 @@ meta.__eq = function(a,b)
   return true
 end
 
-function Tensor:tostring()
-  local s = ''
-  if self._type == 'number' then
-    s = s .. self:item()
-  else
-    s = s .. '{'
-    for i, v in ipairs(self) do
-      s = s .. v:tostring() .. ', '
-    end
-    s = s:sub(1, #s-2) .. '}'
-  end
-
-  return s
-end
-
 function meta:__tostring()
-  return self:tostring()
+  return utils.pp(self)
 end
 
 return Tensor
