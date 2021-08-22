@@ -2,28 +2,8 @@ local utils = require('light.utils')
 local Tensor = {
   do_grad = true, -- contextually limit autodiff computation
 }
-local meta = {}
 
-local function is_tensor(t)
-  return getmetatable(t) == meta
-end
-
-local function typecheck(data)
-  if type(data) == 'table' then
-    -- pytorch also doesn't allow nested tensors
-    if is_tensor(data) then
-      error('nested tensors are not allowed because of issues with autodiff')
-    end
-
-    for i, v in ipairs(data) do
-      typecheck(v)
-    end
-  elseif type(data) ~= 'number' then
-    error(("Tensor contains non number '%s'"):format(data))
-  end
-end
-
-function meta:__index(k)
+function Tensor:__index(k)
   if type(k) == 'number' then
     if self._type == 'number' then
       error(('cannot index a scalar tensor %s at %s'):format(self, k))
@@ -48,7 +28,7 @@ function meta:__index(k)
   end
 end
 
-function meta:__newindex(k, v)
+function Tensor:__newindex(k, v)
   if type(k) == 'number' then
     assert(self._type ~= 'number', 'cannot call __newindex on a scalar tensor')
 
@@ -65,7 +45,7 @@ function meta:__newindex(k, v)
   end
 end
 
-function meta:__len()
+function Tensor:__len()
   if self._type == 'number' then
     assert(#self.storage == 1, 'want length of 1 for scalar tensor, got ' .. tostring(#self.storage))
     error(('attempt to get len of 0-dim tensor %s'):format(self.storage[1]))
@@ -74,9 +54,28 @@ function meta:__len()
   return self._size[1] or 0 -- also a hack to deal with {}
 end
 
+local function isinstance(t, m)
+  return getmetatable(t) == m
+end
+
+local function typecheck(data)
+  if type(data) == 'table' then
+    -- pytorch also doesn't allow nested tensors
+    if isinstance(data, Tensor) then
+      error('nested tensors are not allowed because of issues with autodiff')
+    end
+
+    for i, v in ipairs(data) do
+      typecheck(v)
+    end
+  elseif type(data) ~= 'number' then
+    error(("Tensor contains non number '%s'"):format(data))
+  end
+end
+
 
 function Tensor.new(data, args)
-  if is_tensor(data) then
+  if isinstance(data, Tensor) then
     if args then
       error('Cannot make a tensor from a tensor with args because of ambiguity')
     else
@@ -105,6 +104,8 @@ function Tensor._new(storage, size, stride, offset)
   assert(type(stride) == 'table', 'want table stride got ' .. type(stride))
 
   local self = {}
+  setmetatable(self, Tensor)
+
   self.storage = storage
   self._stride = stride
   self._size = size
@@ -116,7 +117,6 @@ function Tensor._new(storage, size, stride, offset)
     self._type = 'table'
   end
 
-  setmetatable(self, meta)
   return self
 end
 
@@ -375,18 +375,18 @@ end
 
 -- See https://www.lua.org/manual/5.3/manual.html#2.4 for reference
 
-meta.__add  = piecewiseOp(function(a,b) return a+b  end, function(a,b) return 1, 1 end)
-meta.__sub  = piecewiseOp(function(a,b) return a-b  end, function(a,b) return 1, -1 end)
-meta.__mul  = piecewiseOp(function(a,b) return a*b  end, function(a,b) return b, a end)
-meta.__div  = piecewiseOp(function(a,b) return a/b  end, function(a,b) return 1/b, -a/b^2 end)
-meta.__pow  = piecewiseOp(function(a,b) return a^b  end, function(a,b) return b*a^(b-1), math.log(a)*a^b end)
-meta.__idiv = piecewiseOp(function(a,b) return a//b end)
-meta.__mod  = piecewiseOp(function(a,b) return a%b  end)
+Tensor.__add  = piecewiseOp(function(a,b) return a+b  end, function(a,b) return 1, 1 end)
+Tensor.__sub  = piecewiseOp(function(a,b) return a-b  end, function(a,b) return 1, -1 end)
+Tensor.__mul  = piecewiseOp(function(a,b) return a*b  end, function(a,b) return b, a end)
+Tensor.__div  = piecewiseOp(function(a,b) return a/b  end, function(a,b) return 1/b, -a/b^2 end)
+Tensor.__pow  = piecewiseOp(function(a,b) return a^b  end, function(a,b) return b*a^(b-1), math.log(a)*a^b end)
+Tensor.__idiv = piecewiseOp(function(a,b) return a//b end)
+Tensor.__mod  = piecewiseOp(function(a,b) return a%b  end)
 
 -- **IMPORTANT:** Lua will only try __eq when the values being compared are *both tables.*
 -- The result of the call is always converted to a boolean, so we can't return
 -- a tensor then have .all() and .any() like numpy.
-meta.__eq = function(a,b)
+Tensor.__eq = function(a,b)
   if a._type ~= b._type then
     return false
   elseif a._type == 'number' and b._type == 'number' then
@@ -407,7 +407,7 @@ meta.__eq = function(a,b)
   return true
 end
 
-function meta:__tostring()
+function Tensor:__tostring()
   return utils.pp(self)
 end
 
