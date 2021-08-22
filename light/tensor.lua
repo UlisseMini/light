@@ -34,10 +34,15 @@ function meta:__index(k)
       return nil -- index out of bounds
     end
 
-    local offset = self._offset + self._stride[1] * (k - 1)
-    local size = utils.slice(self._size, 2)
-    local stride = utils.slice(self._stride, 2)
-    return Tensor._new(self.storage, size, stride, offset)
+    if #self._stride == 1 then
+      assert(self._stride[1] == 1)
+      return self.storage[k + self._offset]
+    else
+      local offset = self._offset + self._stride[1] * (k - 1)
+      local size = utils.slice(self._size, 2)
+      local stride = utils.slice(self._stride, 2)
+      return Tensor._new(self.storage, size, stride, offset)
+    end
   else
     return Tensor[k]
   end
@@ -225,7 +230,7 @@ function Tensor:T()
   for i=1,#self[1] do
     res[i] = {}
     for j=1,#self do
-      res[i][j] = self[j][i]:item()
+      res[i][j] = self[j][i]
     end
   end
 
@@ -273,7 +278,7 @@ function Tensor.matmul(A, B)
     for j=1,p do
       local s = 0
       for k=1,m do
-        s = s + A[i][k]:item() * B[k][j]:item()
+        s = s + A[i][k] * B[k][j]
       end
       res[i][j] = s
     end
@@ -295,7 +300,7 @@ end
 
 function Tensor:sum()
   local s = 0
-  for _, v in ipairs(self) do s = s + v:item() end
+  for _, v in ipairs(self) do s = s + v end
   return Tensor(s, {
       _parents = {self},
       _backward = function(c, a)
@@ -314,7 +319,7 @@ end
 function Tensor:map(fn)
   local res = {}
   for _, v in ipairs(self) do
-    table.insert(res, fn(v):item())
+    table.insert(res, fn(v))
   end
   return Tensor(res)
 end
@@ -323,7 +328,7 @@ function Tensor.piecewise(op, a, b)
   assert(#a == #b, ('#a (%d) != #b (%d)'):format(#a, #b))
   local res = {}
   for i=1,#a do
-    res[i] = op(a[i]:item(), b[i]:item())
+    res[i] = op(a[i], b[i])
   end
   return Tensor(res)
 end

@@ -84,13 +84,13 @@ describe('Tensor', function()
     end)
 
     it('reads numbers', function()
-      assert.equal(1, t[1]:item())
-      assert.equal(2, t[2]:item())
+      assert.equal(1, t[1])
+      assert.equal(2, t[2])
 
-      assert.equal(1, m_2x2[1][1]:item())
-      assert.equal(2, m_2x2[1][2]:item())
-      assert.equal(3, m_2x2[2][1]:item())
-      assert.equal(4, m_2x2[2][2]:item())
+      assert.equal(1, m_2x2[1][1])
+      assert.equal(2, m_2x2[1][2])
+      assert.equal(3, m_2x2[2][1])
+      assert.equal(4, m_2x2[2][2])
     end)
 
     it('returns nil when an index is out of bounds', function()
@@ -104,13 +104,6 @@ describe('Tensor', function()
     it('allows index mutation', function()
       t[1] = 2
       assert.is_equal(t, light.Tensor({2,2}))
-    end)
-
-    it('returns a scalar tensor reference to each number', function()
-      local x = t[1]
-      assert.equal(x:item(), 1)
-      t[1] = 2
-      assert.equal(x:item(), 2)
     end)
   end)
 
