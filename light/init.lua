@@ -6,24 +6,11 @@ local Tensor = {
 
 function Tensor:__index(k)
   if type(k) == 'number' then
-    if self._type == 'number' then
-      error(('cannot index a scalar tensor %s at %s'):format(self, k))
+    if type(self.data) == 'number' then
+      error(('cannot index a scalar tensor %s at %s'):format(self.data, k))
     end
 
-    assert(k ~= 0, '0 is an invalid index [hint: indices start at 1]')
-    if k > #self then
-      return nil -- index out of bounds
-    end
-
-    if #self._stride == 1 then
-      assert(self._stride[1] == 1)
-      return self.storage[k + self._offset]
-    else
-      local offset = self._offset + self._stride[1] * (k - 1)
-      local size = utils.slice(self._size, 2)
-      local stride = utils.slice(self._stride, 2)
-      return Tensor._new(self.storage, size, stride, offset)
-    end
+    return self.data[k]
   else
     return Tensor[k]
   end
@@ -31,25 +18,30 @@ end
 
 function Tensor:__newindex(k, v)
   if type(k) == 'number' then
-    assert(self._type ~= 'number', 'cannot call __newindex on a scalar tensor')
+    assert(type(self.data) ~= 'number', 'cannot call __newindex on a scalar tensor')
+    assert(type(v) == 'number', 'not supporting __newindex with tables or tensors yet')
 
-    assert(type(v) == 'number', 'not supporting __newindex with tables yet')
+    -- this should do .all when implemented (like numpy)
     assert(#self._size == 1, ('not supporting __newindex on %s-dim tensors yet'):format(#self._size))
 
     if k > #self then
       error(('index out of bounds, len %s but attempt to set self[%s] = %s'):format(#self.data, k, v))
     end
 
-    self.storage[self._offset + self._stride[1]*k] = v
+    self.data[k] = v
   else
     rawset(self, k, v)
   end
 end
 
+function Tensor:item()
+  assert(type(self.data) == 'number')
+  return self.data
+end
+
 function Tensor:__len()
-  if self._type == 'number' then
-    assert(#self.storage == 1, 'want length of 1 for scalar tensor, got ' .. tostring(#self.storage))
-    error(('attempt to get len of 0-dim tensor %s'):format(self.storage[1]))
+  if type(self.data) == 'number' then
+    error(('attempt to get len of 0-dim tensor %s'):format(self.data))
   end
 
   return self._size[1] or 0 -- also a hack to deal with {}
@@ -86,10 +78,10 @@ function Tensor.new(data, args)
   end
 
   typecheck(data)
-  local storage = utils.flatten({data})
-  local size = Tensor._size(data)
-  local stride = Tensor._stride(size)
-  local self = Tensor._new(storage, size, stride)
+  local self = {}
+  self._size = Tensor._size(data)
+  self.data = data
+  setmetatable(self, Tensor)
 
   if args and Tensor.do_grad then
     self.grad = nil               -- grad of this node, computed after calling backward
@@ -100,44 +92,6 @@ function Tensor.new(data, args)
   return self
 end
 setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
-
-function Tensor._new(storage, size, stride, offset)
-  assert(type(size) == 'table', 'want table size got ' .. type(size))
-  assert(type(stride) == 'table', 'want table stride got ' .. type(stride))
-
-  local self = {}
-  setmetatable(self, Tensor)
-
-  self.storage = storage
-  self._stride = stride
-  self._size = size
-  self._offset = offset or 0
-  if #size == 0 then
-    self._type = 'number'
-  else
-    -- tensor might confuse people, since 'number' is the same as lua type
-    self._type = 'table'
-  end
-
-  return self
-end
-
-function Tensor._stride(size)
-  local stride = {}
-  local dim = #size
-
-  stride[dim] = 1
-  for i=dim-1,1,-1 do
-    stride[i] = size[i+1]*stride[i+1]
-  end
-
-  return stride
-end
-
-
-function Tensor:stride()
-  return self._stride
-end
 
 function Tensor._size(t)
   local size = {}
@@ -152,12 +106,6 @@ end
 
 function Tensor:size()
   return self._size
-end
-
-function Tensor:item()
-  assert(self._type == 'number', 'cannot get item of a non scalar tensor')
-
-  return self.storage[1 + self._offset]
 end
 
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
@@ -225,41 +173,6 @@ Tensor.backward = Tensor.no_grad_f(Tensor.backward)
 
 --------------------- Tensor ops --------------------- 
 
--- TODO: return a view, add tests for mutation to ensure its a view
-function Tensor:T()
-  local res = {}
-
-  for i=1,#self[1] do
-    res[i] = {}
-    for j=1,#self do
-      res[i][j] = self[j][i]
-    end
-  end
-
-  local t = Tensor(res)
-  if self.grad then
-    t.grad = self.grad:T()
-  end
-  t._parents = self._parents -- TODO: transpose?
-  t._backward = self._backward
-  return t
-end
-
--- TODO: Implement
-function Tensor:view(size)
-  size = Tensor(size)
-  local our_size = Tensor(self:size())
-
-  local a, b = our_size:prod(), size:prod()
-  if a ~= b then
-    error(('size mismatch, tensor with %s items cannot be viewed as if it had %s items'):format(a, b))
-  end
-
-  -- See https://numpy.org/doc/stable/reference/generated/numpy.reshape.html
-  -- And https://pytorch.org/docs/stable/generated/torch.Tensor.view.html#torch.Tensor.view
-
-end
-
 function Tensor.matmul(A, B)
   assert(A:size()[2] == B:size()[1], 'size mismatch')
 
@@ -268,9 +181,11 @@ function Tensor.matmul(A, B)
   local res = {}
 
   if p == nil then
-    -- We got a vector, view it as a {m, 1} matrix.
     p = 1
-    B = B:view({m, p})
+    -- matrix vector multiplication
+    -- TODO: make cleaner with einsum or something?
+    -- Separate gradient computation from functions so I can use dot() without guilt
+
   end
 
   -- matrix matrix product
@@ -388,25 +303,8 @@ Tensor.__mod  = piecewiseOp(function(a,b) return a%b  end)
 -- **IMPORTANT:** Lua will only try __eq when the values being compared are *both tables.*
 -- The result of the call is always converted to a boolean, so we can't return
 -- a tensor then have .all() and .any() like numpy.
-Tensor.__eq = function(a,b)
-  if a._type ~= b._type then
-    return false
-  elseif a._type == 'number' and b._type == 'number' then
-    return a:item() == b:item()
-  end
-  assert(a._type == 'table' and b._type == 'table')
-
-  if #a ~= #b then
-    return false
-  end
-
-  for i=1,#a do
-    -- this recurses if a and b are tensors
-    if a[i] ~= b[i] then
-      return false
-    end
-  end
-  return true
+Tensor.__eq = function(a, b)
+  return utils.eq(a.data, b.data)
 end
 
 function Tensor:__tostring()

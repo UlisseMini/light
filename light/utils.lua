@@ -47,7 +47,7 @@ end
 function utils.number(t)
   if type(t) == 'number' then
     return t
-  elseif type(t) == 'table' and t._type == 'number' then
+  elseif type(t) == 'table' and type(t.data) == 'number' then
     return t:item()
   else
     return nil
@@ -72,6 +72,22 @@ function utils.p(...)
     s = s .. utils.pp(v) .. '\t'
   end
   print(s)
+end
+
+function utils.eq(a, b)
+  if type(a) ~= 'table' or type(b) ~= 'table' then
+    return a == b
+  end
+  if #a ~= #b then
+    return false
+  end
+
+  for i=1,#a do
+    if not utils.eq(a[i], b[i]) then
+      return false
+    end
+  end
+  return true
 end
 
 return utils

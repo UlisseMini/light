@@ -31,22 +31,6 @@ describe('Tensor', function()
     -- end)
   end)
 
-  describe('stride', function()
-    it('computes stride({2,5}) = {5, 1}', function()
-      local x = T.ones({2, 5})
-      local got = x:stride()
-      local want = {5, 1}
-      assert.are.same(want, got)
-    end)
-
-    it('computes stride({3,2,4}) = {8,4,1}', function()
-      local x = T.ones({3,2,4})
-      local got = x:stride()
-      local want = {8,4,1}
-      assert.are.same(want, got)
-    end)
-  end)
-
   describe('all', function()
     it('creates tensors from a vector shape', function()
       local t = light.Tensor.all({3}, 2)
@@ -215,61 +199,6 @@ describe('Tensor', function()
       assert.error(function() t1:dot(t2) end)
       assert.error(function() t2:dot(t1) end)
     end)
-  end)
-
-  describe('transpose', function()
-    it('should multiply', function()
-      local got = m_3x2:T():matmul(m_3x2)
-      local want = T {
-        {35, 44},
-        {44, 56}
-      }
-      assert.equal(want, got)
-    end)
-
-    it('should deal with sizes properly', function()
-      local m_2x3 = m_3x2:T()
-      assert.are.same({2,3}, m_2x3:size())
-    end)
-
-    it('should return a mutable view', function()
-      -- changing the transpose should change the original matrix (like in numpy)
-    end)
-
-    -- should it? not sure
-    it('should preserve parents', function()
-
-    end)
-
-    it('should preserve gradients', function()
-      local A = light.Tensor({{1,2}, {3,4}, {5,6}})
-      A.grad = T{{1,2}, {3,4}, {5,6}}
-      assert.equal(A.grad:T(), A:T().grad)
-    end)
-  end)
-
-  describe('view', function()
-    local v = T {1,2}
-
-    it('should check for size mismatch errors', function()
-      assert.error(function()     v:view{3,2} end)
-      assert.error(function()     v:view{1,1} end)
-      assert.error(function()     m_2x2:view{3,2} end)
-      assert.error(function()     m_3x2:view{1,3} end)
-      assert.error(function()     v:view{2,-1} end)
-      assert.error(function()     v:view{0,2} end)
-      assert.not_error(function() v:view{2} end)
-      assert.not_error(function() v:view{2, 1, 1} end)
-    end)
-
-    -- it('should view a vector as a (m by 1) matrix', function()
-    --   local got = v:view{2,1}
-    --   local want = T {
-    --     {1},
-    --     {2},
-    --   }
-    --   assert.equal(want, got)
-    -- end)
   end)
 
   describe('matmul', function()
