@@ -23,12 +23,11 @@ describe('Tensor', function()
       assert.not_error(function() light.Tensor(5) end)
     end)
 
-    -- TODO
-    -- it('raises an error on a badly shaped tensor', function()
-    --   assert.error(function()
-    --     local x = light.Tensor({{1,2}, {3,4,5}})
-    --   end)
-    -- end)
+    it('raises an error on a badly shaped tensor', function()
+      assert.error(function()
+        local x = light.Tensor({{1,2}, {3,4,5}})
+      end)
+    end)
   end)
 
   describe('all', function()

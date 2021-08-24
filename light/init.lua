@@ -97,9 +97,18 @@ function Tensor._size(t)
   local size = {}
   if type(t) == 'table' then
     size[1] = #t
-    if type(t[1]) == 'table' then
-      size = utils.concat(size, Tensor._size(t[1]))
+    local subSize = Tensor._size(t[1])
+    -- check all children have size subSize
+    for i=2,#t do
+      local childSize = Tensor._size(t[i])
+      if not utils.eq(subSize, childSize) then
+        error(('want subsize %s but got %s in position %s of %s'):format(
+            utils.pp(subSize), utils.pp(childSize), i, utils.pp(t)
+          ))
+      end
     end
+
+    size = utils.concat(size, subSize)
   end
   return size
 end
