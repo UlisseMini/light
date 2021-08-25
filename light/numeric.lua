@@ -1,5 +1,5 @@
 local numeric = {}
-local h = 0.001
+local h = 0.00001
 
 -- Compute the numeric derivative of f : R -> R
 function numeric.derivative(f)
