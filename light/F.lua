@@ -17,6 +17,7 @@ end
 
 F.log = F:new(math.log, function(a, b) return 1/(a*F.log(b)), -F.log(a)/(b*F.log(b)^2) end)
 F.add = F:new(function(a,b) return a+b  end, function(a,b) return 1, 1 end)
+F.sub = F:new(function(a,b) return a-b  end, function(a,b) return 1, -1 end)
 F.mul = F:new(function(a,b) return a*b  end, function(a,b) return b, a end)
 F.pow = F:new(function(a,b) return a^b  end, function(a,b) return b*a^(b-1), F.log(a)*a^b end)
 F.div = F:new(function(a,b) return a/b  end, function(a,b) return 1/b, -a/b^2 end)

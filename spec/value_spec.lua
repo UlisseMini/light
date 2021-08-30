@@ -1,14 +1,22 @@
-
 local V = require('light.value')
+
+-- todo: refactor to numerics? register assert.close to luaassert
+local function assert_close(want, got)
+  want, got = V.item(want), V.item(got)
+  local tol = 0.01
+  local err = want - got
+  if math.abs(err) > tol then
+    error(('got %s want %s diff %s'):format(got, want, err))
+  end
+end
 
 describe('Value', function()
   it('has equality', function()
     assert.equal(V(5), V(5))
     assert.not_equal(V(5), V(4))
-    assert.not_equal(V(5), {})
-
-    -- not sure, but this is the current implementation
-    assert.equal(V(5), {data = 5})
+    -- no comparing different types
+    assert.error(function() return V(5) == {} end)
+    assert.error(function() return V(5) == {data = 5} end)
   end)
 
   it('does math', function()
@@ -50,5 +58,49 @@ describe('Value', function()
 
       assert.equal(dx.data, x.grad.data)
       assert.equal(dy.data, y.grad.data)
+  end)
+
+  it('backprops through relu', function()
+    local x = V(4)
+    local z = x:relu()
+    z:backward()
+    assert.equal(1, x.grad.data)
+
+    x.data = -3
+    z:backward()
+    assert.equal(0, x.grad.data)
+  end)
+
+  it('backprops through exp and powers', function()
+    local x = V(2)
+    local y = V(3)
+    local z = x^y
+    z:backward()
+
+    assert_close(12, x.grad)
+    -- FIXME: make math.log to work with Values
+    assert_close(math.log(x.data)*z, y.grad)
+  end)
+
+  it('passes the micrograd example', function()
+    local a,b,c,d,e,f,g
+
+    a = V(-4.0)
+    b = V(2.0)
+    c = a + b
+    d = a * b + b^3
+    c = c + c + 1
+    c = c + 1 + c + (-a)
+    d = d + d * 2 + (b + a):relu()
+    d = d + 3 * d + (b - a):relu()
+    e = c - d
+    f = e^2
+    g = f / 2.0
+    g = g + 10.0 / f
+
+    assert_close(24.7041, g.data)
+    g:backward()
+    assert_close(138.8338, a.grad.data)
+    assert_close(645.5773, b.grad.data)
   end)
 end)
