@@ -94,16 +94,40 @@ function Value:zero_grad()
   end
 end
 
+-- top down topological ordering of the dag, (nodes with no parents, children of those nodes, ...)
+-- TODO: make into an iterator
+function Value:topo()
+  local topo = {}
+  local visited = {}
+
+  local function build_topo(node)
+    if not visited[node] then
+      visited[node] = true
+      if Value.isinstance(node) then
+        for _, parent in ipairs(node._parents) do
+          build_topo(parent)
+        end
+      end
+      table.insert(topo, node)
+    end
+  end
+  build_topo(self)
+
+  return topo
+end
+
 function Value:backward_no_zero()
   self.grad = Value(1)
 
-  local stack = {self}
-  local visited = {}
-  while #stack > 0 do
-    local node = table.remove(stack, 1)
-    -- TODO: Move indent lower down
-    if not visited[node] and node._backward then -- not a leaf node, not visited
+  -- walk in reverse topological order
+  -- TODO: Fix stupid type juggling because of numbers in _parents,
+  -- disallow numbers in _parents
+  local topo = self:topo()
+  for i=#topo,1,-1 do
+    local node = topo[i]
+    if Value.isinstance(node) and node._backward then
       local parents = node._parents
+
       local derivs = table.pack(node._backward(table.unpack(allnums(parents))))
       if #derivs ~= #parents then
         error(('got %s derivs but have %s parents'):format(#derivs, #parents))
@@ -111,15 +135,10 @@ function Value:backward_no_zero()
 
       for i=1,#derivs do
         if Value.isinstance(parents[i]) then
-          -- only update grad if we have a value, otherwise it is a const
-          -- and we don't need to update or add to the stack.
           parents[i].grad = parents[i].grad + derivs[i] * node.grad
-
-          table.insert(stack, parents[i])
         end
       end
     end
-    visited[node] = true
   end
 end
 
