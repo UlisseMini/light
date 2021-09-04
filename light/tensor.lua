@@ -160,8 +160,6 @@ function Tensor.__eq(a, b)
   return utils.eq(a, b)
 end
 
-function Tensor:__tostring()
-  return utils.pp(self)
-end
+Tensor.__tostring = utils.pp
 
 return Tensor

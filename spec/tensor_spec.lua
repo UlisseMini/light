@@ -44,6 +44,21 @@ describe('Tensor', function()
     end)
   end)
 
+  describe('tostring', function()
+    it('stringifies 1-tensors', function()
+      assert.equal(tostring(T{1,2}), '{1, 2}')
+      assert.equal(tostring(T{1,2,3}), '{1, 2, 3}')
+    end)
+
+    it('stringifies 2-tensors', function()
+      assert.equal(tostring(T{{1,2}, {3,4}}), '{{1, 2}, {3, 4}}')
+    end)
+
+    it('stringifies 1-tensors containing values', function()
+      assert.equal(tostring(T{V(1), V(2)}), '{Value(1, grad=nil), Value(2, grad=nil)}')
+    end)
+  end)
+
   describe('all', function()
     it('creates tensors from a vector shape', function()
       local t = light.Tensor.all({3}, 2)
@@ -233,7 +248,7 @@ describe('Tensor', function()
       loss:backward()
 
       local want = T{4, 6}
-      assert.equal(want, x:map(V.grad))
+      assert.equal(want, x:map(V.get_grad))
     end)
   end)
 end)

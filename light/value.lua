@@ -81,7 +81,7 @@ end
 setmetatable(Value, {__call = function(self, ...) return self.new(...) end})
 
 -- useful when x could be a constant (ie. a number)
-function Value.grad(x)
+function Value.get_grad(x)
   if getmetatable(x) == Value then
     return x.grad.data or 0
   else

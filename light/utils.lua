@@ -54,7 +54,7 @@ function utils.slice(t, a)
 end
 
 function utils.pp(t, ident)
-  if type(t) ~= 'table' then
+  if type(t) ~= 'table' or (t.__tostring and t.__tostring ~= utils.pp) then
     return tostring(t)
   else
     local s = '{'
