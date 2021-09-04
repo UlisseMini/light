@@ -69,21 +69,24 @@ function Tensor.matmul(A, B)
 
   if p == nil then
     p = 1
-    -- matrix vector multiplication
-    -- TODO: make cleaner with einsum or something?
-    -- Separate gradient computation from functions so I can use dot() without guilt
-  end
-
-  -- matrix matrix product
-  -- this is ugly, but it's just saying (AB)ij is dot(row i of A, col j of B)
-  for i=1,n do
-    res[i] = {}
-    for j=1,p do
+    local x = B
+    for i=1,n do
       local s = 0
-      for k=1,m do
-        s = s + A[i][k] * B[k][j]
+      for k=1, m do s = s + A[i][k] * x[k] end
+      res[i] = s
+    end
+  else
+    -- matrix matrix product
+    -- this is ugly, but it's just saying (AB)ij is dot(row i of A, col j of B)
+    for i=1,n do
+      res[i] = {}
+      for j=1,p do
+        local s = 0
+        for k=1,m do
+          s = s + A[i][k] * B[k][j]
+        end
+        res[i][j] = s
       end
-      res[i][j] = s
     end
   end
 
