@@ -10,13 +10,19 @@ local function least_squares(A, b)
   end
 
   local lr = 0.01
-  local x = T.zeros(b:size()):map(V)
+  local x = T.zeros(b:size())
+  -- enable gradient computation by turning every element of x into a Value,
+  -- light currently does autodiff on the level of individual values.
+  x = x:map(V)
 
   for i=1,1000 do
     local loss = cost(x)
     print(('loss %.4f\tx = %s'):format(loss.data, x:map(V.get.data)))
+    -- in light :zero_grad is called automatically, if you want to accumulate gradients
+    -- you call :backward_no_zero().
     loss:backward()
 
+    -- Mapping V.get.grad grabs .grad from each Value in the x Tensor
     local grad = x:map(V.get.grad)
     x = x - lr * grad
   end
