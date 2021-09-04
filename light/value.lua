@@ -80,14 +80,24 @@ function Value.new(data, args)
 end
 setmetatable(Value, {__call = function(self, ...) return self.new(...) end})
 
--- useful when x could be a constant (ie. a number)
-function Value.get_grad(x)
+Value.get = {}
+function Value.get.grad(x)
   if getmetatable(x) == Value then
-    return x.grad.data or 0
+    return x.grad.data
   else
-    return 0
+    return nil
   end
 end
+function Value.get.data(x)
+  if type(x) == 'number' then
+    return x
+  elseif getmetatable(x) == Value then
+    return x.data
+  else
+    return nil
+  end
+end
+
 
 function Value:zero_grad()
   self.grad = Value(0)

@@ -248,7 +248,7 @@ describe('Tensor', function()
       loss:backward()
 
       local want = T{4, 6}
-      assert.equal(want, x:map(V.get_grad))
+      assert.equal(want, x:map(V.get.grad))
     end)
   end)
 end)
