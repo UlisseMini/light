@@ -101,9 +101,11 @@ end
 
 function Value:zero_grad()
   self.grad = Value(0)
+  local visited = {}
   for _, parent in ipairs(self._parents) do
-    if parent.requires_grad then
+    if not visited[parent] and parent.requires_grad then
       parent:zero_grad()
+      visited[parent] = true
     end
   end
 end
