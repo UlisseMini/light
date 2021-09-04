@@ -38,12 +38,39 @@ end
 
 describe('F', function()
   it('should have correct numerical derivatives', function()
-    test_fn_deriv(F.log, 2, 1, 10)
     test_fn_deriv(F.add, 2)
+    test_fn_deriv(F.sub, 2)
     test_fn_deriv(F.mul, 2)
-    test_fn_deriv(F.pow, 2, 0, 3)
     test_fn_deriv(F.div, 2, 0.1, 3)
+
+    -- math library
+    test_fn_deriv(F.log, 2, 1, 10)
+    test_fn_deriv(F.log10, 1, 1, 100)
+    test_fn_deriv(F.pow, 2, 0, 3)
+
+    test_fn_deriv(F.cosh, 1, -2, 2)
+    test_fn_deriv(F.sinh, 1, -2, 2)
+    test_fn_deriv(F.tanh, 1, -2, 2)
+
+    test_fn_deriv(F.acos, 1, -1, 1)
+    test_fn_deriv(F.asin, 1, -1, 1)
+    test_fn_deriv(F.atan, 1, -5, 5)
+
+    test_fn_deriv(F.rad, 1, -1000, 1000)
+    test_fn_deriv(F.deg, 1, -math.pi*4, math.pi*4)
+
+    test_fn_deriv(F.exp, 1, -math.pi*2, math.pi*2)
+    test_fn_deriv(F.cos, 1, -math.pi*2, math.pi*2)
+    test_fn_deriv(F.sin, 1, -math.pi*2, math.pi*2)
+    test_fn_deriv(F.tan, 1, -math.pi*2, math.pi*2)
+
+    test_fn_deriv(F.abs, 1, -5, 5)
+    test_fn_deriv(F.max, 4, -5, 5)
+    test_fn_deriv(F.min, 4, -5, 5)
+
+    test_fn_deriv(F.sqrt, 1, 0, 10)
+
+    -- misc
     test_fn_deriv(F.relu, 1)
   end)
-
 end)
