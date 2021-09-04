@@ -80,6 +80,15 @@ function Value.new(data, args)
 end
 setmetatable(Value, {__call = function(self, ...) return self.new(...) end})
 
+-- useful when x could be a constant (ie. a number)
+function Value.grad(x)
+  if getmetatable(x) == Value then
+    return x.grad.data or 0
+  else
+    return 0
+  end
+end
+
 function Value:zero_grad()
   self.grad = Value(0)
   for _, parent in ipairs(self._parents) do

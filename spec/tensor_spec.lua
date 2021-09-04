@@ -1,5 +1,6 @@
 local light = require('light')
 local T = light.Tensor
+local V = light.Value
 
 
 local m_2x2 = light.Tensor({{1,2}, {3,4}})
@@ -217,12 +218,22 @@ describe('Tensor', function()
 
   describe('autograd', function()
     it('should backprop through sums', function()
-      local V = require('light.value')
       local t = T{1, 2}:map(V.new)
       local z = t:sum()
       z:backward()
       assert.equal(1, t[1].grad.data)
       assert.equal(1, t[2].grad.data)
+    end)
+
+    it('should backprop through matmul', function()
+      local A = T{{1,2}, {3,4}}
+      local x = T{2,1}:map(V)
+      local b = A:matmul(x)
+      local loss = b:sum()
+      loss:backward()
+
+      local want = T{4, 6}
+      assert.equal(want, x:map(V.grad))
     end)
   end)
 end)
