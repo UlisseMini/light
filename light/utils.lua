@@ -43,17 +43,6 @@ function utils.slice(t, a)
   return ret
 end
 
--- if t a number or a 0-tensor return the number, else return nil.
-function utils.number(t)
-  if type(t) == 'number' then
-    return t
-  elseif type(t) == 'table' and type(t.data) == 'number' then
-    return t:item()
-  else
-    return nil
-  end
-end
-
 function utils.pp(t, ident)
   if type(t) ~= 'table' then
     return tostring(t)

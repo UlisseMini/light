@@ -99,7 +99,6 @@ describe('Value', function()
     z:backward()
 
     assert_close(12, x.grad)
-    -- FIXME: make math.log to work with Values
     assert_close(math.log(x.data)*z, y.grad)
   end)
 
