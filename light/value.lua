@@ -116,15 +116,15 @@ end
 function Value:backward_no_zero()
   self.grad = Value(1)
 
-  -- walk in reverse topological order
-  -- TODO: Fix stupid type juggling because of numbers in _parents,
-  -- disallow numbers in _parents
+  -- walk in reverse topological order, ie. always call backward on all children
+  -- before calling backward on their parents
   local topo = self:topo()
   for i=#topo,1,-1 do
     local node = topo[i]
     if node._backward then
       local parents = node._parents
 
+      -- TODO: Only compute derivatives we need
       local derivs = table.pack(node._backward(table.unpack(allnums(parents))))
       if #derivs ~= #parents then
         error(('got %s derivs but have %s parents'):format(#derivs, #parents))
