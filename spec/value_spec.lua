@@ -81,6 +81,17 @@ describe('Value', function()
     assert.equal(0, x.grad.data)
   end)
 
+  it('backprops through math library functions', function()
+    local x,y,z
+    x = V(3)
+    y = x:log()
+    z = y:atan()
+    z:backward()
+
+    local want = (1/x)/(1 + y^2)
+    assert_close(want, x.grad)
+  end)
+
   it('backprops through exp and powers', function()
     local x = V(2)
     local y = V(3)

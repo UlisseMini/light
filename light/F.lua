@@ -24,7 +24,10 @@ F.div = F:new(function(a,b) return a/b  end, function(a,b) return 1/b, -a/b^2 en
 
 -- math library functions
 
-F.log = F:new(math.log, function(a, b) return 1/(a*F.log(b)), -F.log(a)/(b*F.log(b)^2) end)
+F.log = F:new(math.log, function(a, b)
+  b = b or math.exp(1)
+  return 1/(a*F.log(b)), -F.log(a)/(b*F.log(b)^2)
+end)
 F.rad = F:new(math.rad, function(x) return math.pi/180 end)
 F.deg = F:new(math.deg, function(x) return 180/math.pi end)
 F.exp = F:new(math.exp, math.exp)

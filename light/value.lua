@@ -9,8 +9,6 @@ local function set(xs)
 end
 local infix = set{'add', 'mul', 'div', 'sub', 'pow'}
 
--- TODO: fix F.log(Value) and math.log(Value) using multiple dispatch
-
 -- Return x as a pure lua number if possible
 function Value.tonumber(x)
   if type(x) == 'number' then
@@ -36,9 +34,7 @@ for name, f in pairs(F) do
 
   Value[name] = function(...)
     local res = f(table.unpack(allnums({...})))
-    return Value(res, {_parents = {...}, _backward = function(...)
-      return f.derivs(...)
-    end})
+    return Value(res, {_parents = {...}, _backward = f.derivs})
   end
 end
 
@@ -126,11 +122,11 @@ function Value:backward_no_zero()
 
       -- TODO: Only compute derivatives we need
       local derivs = table.pack(node._backward(table.unpack(allnums(parents))))
-      if #derivs ~= #parents then
+      if #derivs < #parents then
         error(('got %s derivs but have %s parents'):format(#derivs, #parents))
       end
 
-      for i=1,#derivs do
+      for i=1,#parents do
         if parents[i].requires_grad then
           parents[i].grad = parents[i].grad + derivs[i] * node.grad
         end
