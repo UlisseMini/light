@@ -17,7 +17,7 @@ setmetatable(Tensor, {__call = function(_, ...) return Tensor.new(...) end})
 
 function Tensor.size(t)
   local size = {}
-  if type(t) == 'table' then
+  if not utils.number(t) then
     size[1] = #t
     local subSize = Tensor.size(t[1])
     -- check all children have size subSize
