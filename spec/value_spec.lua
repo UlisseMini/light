@@ -2,7 +2,7 @@ local V = require('light.value')
 
 -- todo: refactor to numerics? register assert.close to luaassert
 local function assert_close(want, got)
-  want, got = V.item(want), V.item(got)
+  want, got = V.tonumber(want), V.tonumber(got)
   local tol = 0.01
   local err = want - got
   if math.abs(err) > tol then

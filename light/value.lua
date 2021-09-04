@@ -12,10 +12,10 @@ local infix = set{'add', 'mul', 'div', 'sub', 'pow'}
 -- TODO: fix F.log(Value) and math.log(Value) using multiple dispatch
 
 -- Return x as a pure lua number if possible
-function Value.item(x)
+function Value.tonumber(x)
   if type(x) == 'number' then
     return x
-  elseif Value.isinstance(x) then
+  elseif getmetatable(x) == Value then
     return x.data
   else
     error(('Do not know how to turn %s into a number'):format(x))
@@ -25,7 +25,7 @@ end
 local function allnums(t)
   local purely_numeric_args = {}
   for _, arg  in ipairs(t) do
-    table.insert(purely_numeric_args, Value.item(arg))
+    table.insert(purely_numeric_args, Value.tonumber(arg))
   end
 
   return purely_numeric_args
@@ -43,9 +43,9 @@ for name, f in pairs(F) do
 end
 
 function Value.__unm(a)   return -1 * a end
-function Value.__eq(a, b) return Value.item(a) == Value.item(b) end
-function Value.__lt(a, b) return Value.item(a) <  Value.item(b) end
-function Value.__le(a, b) return Value.item(a) <= Value.item(b) end
+function Value.__eq(a, b) return Value.tonumber(a) == Value.tonumber(b) end
+function Value.__lt(a, b) return Value.tonumber(a) <  Value.tonumber(b) end
+function Value.__le(a, b) return Value.tonumber(a) <= Value.tonumber(b) end
 
 function Value:__tostring()
   return ('Value(%s, grad=%s)'):format(self.data, self.grad)
@@ -66,13 +66,16 @@ function Value.new(data, args)
   self.grad = nil
 
   args = args or {}
-  self._parents = args._parents or {}
-  self._backward = args._backward
+  self.requires_grad = args.requires_grad or true
+  if self.requires_grad then
+    self._parents = args._parents or {}
+    self._backward = args._backward
+  end
 
-  -- validate
-  for i, p in ipairs(self._parents) do
-    if getmetatable(p) ~= Value and type(p) ~= 'number' then
-      error(('got %s in parents[%s] want Value or number'):format(p, i))
+  -- Replace numbers with Value(requires_grad=false)
+  for i=1,#self._parents do
+    if type(self._parents[i]) == 'number' then
+      self._parents[i] = Value(self._parents[i], {requires_grad=false})
     end
   end
 
@@ -81,14 +84,10 @@ function Value.new(data, args)
 end
 setmetatable(Value, {__call = function(self, ...) return self.new(...) end})
 
-function Value.isinstance(x)
-  return getmetatable(x) == Value
-end
-
 function Value:zero_grad()
   self.grad = Value(0)
   for _, parent in ipairs(self._parents) do
-    if Value.isinstance(parent) then
+    if parent.requires_grad then
       parent:zero_grad()
     end
   end
@@ -103,10 +102,8 @@ function Value:topo()
   local function build_topo(node)
     if not visited[node] then
       visited[node] = true
-      if Value.isinstance(node) then
-        for _, parent in ipairs(node._parents) do
-          build_topo(parent)
-        end
+      for _, parent in ipairs(node._parents) do
+        build_topo(parent)
       end
       table.insert(topo, node)
     end
@@ -125,7 +122,7 @@ function Value:backward_no_zero()
   local topo = self:topo()
   for i=#topo,1,-1 do
     local node = topo[i]
-    if Value.isinstance(node) and node._backward then
+    if node._backward then
       local parents = node._parents
 
       local derivs = table.pack(node._backward(table.unpack(allnums(parents))))
@@ -134,7 +131,7 @@ function Value:backward_no_zero()
       end
 
       for i=1,#derivs do
-        if Value.isinstance(parents[i]) then
+        if parents[i].requires_grad then
           parents[i].grad = parents[i].grad + derivs[i] * node.grad
         end
       end
