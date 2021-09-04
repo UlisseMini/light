@@ -96,23 +96,22 @@ function Tensor:dot(other)
   return (self*other):sum()
 end
 
-function Tensor:sum()
-  local s = 0
-  for _, v in ipairs(self) do s = s + v end
-  return s
+function Tensor:reduce(fn, acc)
+  utils.walk(self, function(cur) acc = fn(acc, cur) end)
+  return acc
 end
 
-function Tensor:prod()
-  local ret = 1
-  for _, v in ipairs(self) do ret = ret * v end
-
-  return ret
-end
+function Tensor:sum()  return self:reduce(F.add, 0) end
+function Tensor:prod() return self:reduce(F.mul, 1) end
 
 function Tensor:map(fn)
   local res = {}
   for _, v in ipairs(self) do
-    table.insert(res, fn(v))
+    if utils.number(v) then
+      table.insert(res, fn(v))
+    else
+      table.insert(res, Tensor.map(v, fn))
+    end
   end
   return Tensor(res)
 end
@@ -126,19 +125,9 @@ function Tensor.piecewise(op, a, b)
   return Tensor(res)
 end
 
-local function number(t)
-  if type(t) == 'number' then
-    return t
-  else
-    return nil
-  end
-end
-
 local piecewiseOp = function(op)
   return function(a, b)
-    local ret
-
-    local na, nb = number(a), number(b)
+    local na, nb = utils.number(a), utils.number(b)
 
     if na ~= nil and nb ~= nil then
       return op(na, nb)

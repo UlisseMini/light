@@ -106,6 +106,13 @@ describe('Tensor', function()
         local res = t:map(function(x) return x*2 end)
         assert.equal(res, T{8,6,4})
       end)
+
+      it('should map over 2-tensors', function()
+        local a = T{{1,2}, {3,4}}
+        local got = a:map(function(x) return x * 2 end)
+        local want = T{{2,4}, {6,8}}
+        assert.equal(want, got)
+      end)
     end)
   end)
 
@@ -128,11 +135,10 @@ describe('Tensor', function()
       assert.equal(9, t:sum())
     end)
 
-    -- TODO
-    -- it('should sum matrices', function()
-    --   local t = light.Tensor({{1,1}, {1,1}})
-    --   assert.is_equal(t:sum(), 4)
-    -- end)
+    it('should sum matrices', function()
+      local t = light.Tensor({{1,1}, {1,1}})
+      assert.is_equal(t:sum(), 4)
+    end)
   end)
 
   describe('prod', function()
@@ -206,6 +212,17 @@ describe('Tensor', function()
       local got = v:matmul(w)
 
       assert.equal(want, got)
+    end)
+  end)
+
+  describe('autograd', function()
+    it('should backprop through sums', function()
+      local V = require('light.value')
+      local t = T{1, 2}:map(V.new)
+      local z = t:sum()
+      z:backward()
+      assert.equal(1, t[1].grad.data)
+      assert.equal(1, t[2].grad.data)
     end)
   end)
 end)

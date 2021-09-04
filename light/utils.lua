@@ -19,20 +19,30 @@ function utils.concat(t1, t2)
   return t1
 end
 
-function utils.flatten(data)
-  -- if data is already flat, then return data, we assume the table is well-formed.
-  if type(data[1]) == 'number' then
-    return data
+function utils.number(t)
+  if type(t) == 'number' then
+    return t
+  elseif type(t) == 'table' and type(t.data) == 'number' then
+    return t.data
   else
-    local flattened = {}
-    for i=1,#data do
-      local flat = utils.flatten(data[i])
-
-      flattened = utils.concat(flattened, flat)
-    end
-
-    return flattened
+    return nil
   end
+end
+
+function utils.walk(t, fn)
+  if utils.number(t) then
+    fn(t)
+  else
+    for _, v in ipairs(t) do
+      utils.walk(v, fn)
+    end
+  end
+end
+
+function utils.flatten(data)
+  local flattened = {}
+  utils.walk(data, function(v) table.insert(flattened, v) end)
+  return flattened
 end
 
 function utils.slice(t, a)
