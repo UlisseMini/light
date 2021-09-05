@@ -148,11 +148,6 @@ function Value:topo()
   return topo
 end
 
-function Value:_debug()
-  return ('%s = %s(%s, %s)')
-    :format(self.data, self._op, (self._parents[1] or {}).data, (self._parents[2] or {}).data)
-end
-
 function Value:backward_no_zero()
   assert(Value.grad_enabled, 'attempt to backprop when grad is disabled')
 
@@ -189,6 +184,58 @@ end
 function Value:backward()
   self:zero_grad()
   self:backward_no_zero()
+end
+
+function Value:_debug()
+  return ('%s = %s(%s, %s)')
+    :format(self.data, self._op, (self._parents[1] or {}).data, (self._parents[2] or {}).data)
+end
+
+function Value.pretty_op(op)
+  if op:sub(1, 2) == '__' then op = op:sub(3, -1) end
+  return op
+end
+
+function Value._id(t)
+  local m = getmetatable(t)
+  setmetatable(t, nil)
+  local n = tonumber(tostring(t):sub(8, -1))
+  setmetatable(t, m)
+  return n
+end
+
+function Value:graphviz_dot()
+  local s = 'digraph {\n'
+  s = s .. 'rankdir=LR\n'
+
+  local function node_label(node)
+    if node.requires_grad then
+      local grad = (node.grad or {}).data
+      return ('{data %.3f | grad %s}'):format(node.data, grad)
+    else
+      return ('const %.3f'):format(node.data)
+    end
+  end
+
+
+  local topo = self:topo()
+  for _, node in ipairs(topo) do
+    -- this node
+    s = s .. ('%s [shape=record,label="%s"]\n'):format(node:_id(), node_label(node))
+    if node._op then
+      local op = node._op
+      local op_id = op .. node:_id()
+      s = s .. ('"%s" [label="%s"]\n'):format(op_id, Value.pretty_op(op))
+      s = s .. ('"%s" -> "%s"\n'):format(op_id, node:_id())
+
+      for _, parent in ipairs(node._parents) do
+        s = s .. ('"%s" -> "%s"\n'):format(parent:_id(), op_id)
+      end
+    end
+  end
+
+  s = s .. '}\n'
+  return s
 end
 
 return Value

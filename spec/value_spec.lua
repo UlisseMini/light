@@ -123,4 +123,34 @@ describe('Value', function()
     assert_close(138.8338, a.grad.data)
     assert_close(645.5773, b.grad.data)
   end)
+
+  describe('graphs using graphviz', function()
+    it('should not crash on wierd inputs', function()
+      local _ = V(5):graphviz_dot()
+      local _ = (V(5) + V(3)):graphviz_dot()
+    end)
+
+    local function run_dot(dot)
+      local file = assert(io.popen('dot &> /tmp/light.busted.out', 'w'))
+      file:write(dot)
+      file:flush()
+      local ok, msg, code = file:close()
+      local file = assert(io.open('/tmp/light.busted.out', 'r'))
+      local output = file:read()
+
+      return ok, ('%s (%s %s)'):format(output, msg, code)
+    end
+
+    it('should output valid dot language code', function()
+      local a = V(3)
+      local b = V(5)
+      local c = V(-0.3)
+      local z = a + b * c
+      z = z + b * c
+
+      assert(run_dot(z:graphviz_dot()))
+      z:backward()
+      assert(run_dot(z:graphviz_dot()))
+    end)
+  end)
 end)
