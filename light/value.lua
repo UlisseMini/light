@@ -1,5 +1,7 @@
 local F = require('light.F')
-local Value = {}
+local Value = {
+  grad_enabled = true, -- contextually limit autograd
+}
 Value.__index = Value
 
 local function set(xs)
@@ -63,12 +65,13 @@ function Value.new(data, args)
 
   args = args or {}
   self.requires_grad = args.requires_grad or true
-  if self.requires_grad then
-    self._parents = args._parents or {}
+  if self.requires_grad and Value.grad_enabled then
+    self._parents = args._parents
     self._backward = args._backward
   end
+  self._parents = self._parents or {}
 
-  -- Replace numbers with Value(requires_grad=false)
+  -- Replace numbers in _parents with Value(requires_grad=false)
   for i=1,#self._parents do
     if type(self._parents[i]) == 'number' then
       self._parents[i] = Value(self._parents[i], {requires_grad=false})

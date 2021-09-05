@@ -24,7 +24,11 @@ local function least_squares(A, b)
 
     -- Mapping V.get.grad grabs .grad from each Value in the x Tensor
     local grad = x:map(V.get.grad)
-    x = x - lr * grad
+    -- Use no_grad so we don't backprop to old x, if you don't do this
+    -- the code still works, but its slow and gets slower each iteration
+    light.no_grad(function()
+      x = x - lr * grad
+    end)
   end
 
   return x
@@ -40,6 +44,7 @@ local b = T{1, 2}
 local x_star = T{0, 0.5} -- solution of Ax = b
 
 local x = least_squares(A, b)
+
 print(('got %s want %s'):format(x:map(V.get.data), x_star))
 
 
