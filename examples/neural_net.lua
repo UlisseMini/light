@@ -2,6 +2,11 @@ local light = require('light')
 local T = light.Tensor
 local V = light.Value
 math.randomseed(42)
+-- math.randomseed(1/os.clock())
+
+local function rand(a, b)
+  return math.random()*(b-a) + a
+end
 
 local Net = {}
 Net.__index = Net
@@ -18,9 +23,10 @@ end
 function Net:init(layers, weights, biases)
   assert(#weights == #biases)
 
+  self.layers = layers
+  -- map V to enable gradient tracking for network parameters
   self.weights = weights:map(V)
   self.biases = biases:map(V)
-  self.layers = layers
 end
 
 -- Init a network randomly using math.random
@@ -28,55 +34,80 @@ function Net:random_init(layers)
   local weights = T{}
   local biases = T{}
   for i=1,#layers-1 do
-    table.insert(biases, T.all({layers[i+1]}, math.random))
-
-    table.insert(weights, T.all({layers[i+1], layers[i]}, math.random))
+    table.insert(biases, T.all({layers[i+1]}, function() return 0 end))
+    table.insert(weights, T.all({layers[i+1], layers[i]}, function() return rand(-1,1) end))
   end
   self:init(layers, weights, biases)
 end
-
 
 function Net:forward(a)
   for i=1,#self.weights do
     local W = self.weights[i]
     local b = self.biases[i]
-    a = W:matmul(a) + b
+    a = (W:matmul(a) + b)
+    -- FIXME: adding an activation makes it stop learning for some reason
+    -- a:map_(V.relu)
   end
   return a
 end
 
-function Net:parameters()
-  local i = 0
-  local reading_weights = true
-  return function()
-    i = i + 1
+local net = Net.new()
 
-    if reading_weights then
-      if i > #self.weights then
-        reading_weights = false
-      end
-      return self.weights[i]
-    else
-      return self.biases[i]
-    end
-  end
+local n_inputs = 2
+local n_outputs = 1
+
+-- The nerual network will learn to approximate this function
+local function f(x)
+  return x:sum()
 end
 
-local net = Net.new()
-net:random_init({3, 2, 5, 4})
+local train = {}
+for i=1,100 do
+  local x = T.all({n_inputs}, function() return rand(-10, 10) end)
+  local y = f(x)
+  table.insert(train, {x, y})
+end
 
-local inputs = T{1,2,3}
-local lr = 0.001
+local test = {}
+for i=1,100 do
+  local x = T.all({n_inputs}, function() return rand(20, 30) end)
+  local y = f(x)
+  table.insert(test, {x, y})
+end
 
-for epoch=1,1000 do
-  local outputs = net:forward(inputs)
-  local loss = outputs:dot(outputs)
-  loss:backward()
+net:random_init({n_inputs, 2, n_outputs})
 
-  print('loss', loss.data)
+local function compute_loss(net, data)
+  local loss = 0
+
+  for i=1,#data do
+    local input = data[i][1]
+    local label = data[i][2]
+
+    local output = net:forward(input)
+    local err = output - label
+    loss = loss + err:dot(err):sqrt()
+  end
+  loss = loss / #data
+  return loss
+end
+
+local epochs = 100
+local lr
+for epoch=1,epochs do
+  lr = 0.1/epoch -- lr decay, TODO: implement momentum
+
+  local train_loss = compute_loss(net, train)
+  train_loss:backward()
+  local test_loss = light.no_grad(function() return compute_loss(net, test) end)
+  print(('[%s]\ttrain loss %.6f test loss %.6f'):format(epoch, train_loss.data, test_loss.data))
 
   light.no_grad(function()
     net.weights:map_(function(w) return w - lr * w.grad end)
     net.biases:map_(function(b)  return b - lr * b.grad end)
   end)
 end
+
+print('Net params:')
+print(net.weights:map(V.get.data))
+print(net.biases:map(V.get.data))
