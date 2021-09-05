@@ -36,7 +36,7 @@ for name, f in pairs(F) do
 
   Value[name] = function(...)
     local res = f(table.unpack(allnums({...})))
-    return Value(res, {_parents = {...}, _backward = f.derivs})
+    return Value(res, {_parents = {...}, _backward = f.derivs, _op = name})
   end
 end
 
@@ -64,12 +64,19 @@ function Value.new(data, args)
   self.grad = nil
 
   args = args or {}
-  self.requires_grad = args.requires_grad or true
+  if args.requires_grad ~= nil then
+    self.requires_grad = args.requires_grad
+  else
+    self.requires_grad = Value.grad_enabled
+  end
+
   if self.requires_grad and Value.grad_enabled then
     self._parents = args._parents
     self._backward = args._backward
   end
   self._parents = self._parents or {}
+  -- TODO: assert op exists
+  self._op = args._op -- the op that produced this node, for debugging/etc
 
   -- Replace numbers in _parents with Value(requires_grad=false)
   for i=1,#self._parents do
@@ -133,6 +140,13 @@ function Value:topo()
   return topo
 end
 
+local function isnan(x) return x ~= x end
+
+function Value:_debug()
+  return ('%s = %s(%s, %s)')
+    :format(self.data, self._op, self._parents[1].data, self._parents[2].data)
+end
+
 function Value:backward_no_zero()
   self.grad = Value(1)
 
@@ -152,7 +166,18 @@ function Value:backward_no_zero()
 
       for i=1,#parents do
         if parents[i].requires_grad then
+          -- my sanity is worth a few cpu cycles
+          if isnan(derivs[i]) then
+            print(node:_debug())
+            error(('derivs[%s] = %s, backprop through %s'):format(i, derivs[i], node._op))
+          end
+          if isnan(parents[i].grad.data) then
+            print(parents[i]:_debug())
+            error(('parents[%s].grad = %s'):format(parents[i], derivs[i], node.grad))
+          end
+
           parents[i].grad = parents[i].grad + derivs[i] * node.grad
+
         end
       end
     end
