@@ -38,25 +38,25 @@ end
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
 -- function for recursion, then convert to a tensor in Tensor.all
 -- TODO: Refactor (no longer disallowing nested tensors)
-local function tableAll(size, const)
+local function tableAll(size, generator)
   local t = {}
   if size == nil or #size == 0 then
-    return const
+    return generator()
   end
 
   for i=1,size[1] do
-    t[i] = tableAll(utils.slice(size, 2), const)
+    t[i] = tableAll(utils.slice(size, 2), generator)
   end
 
   return t
 end
 
-function Tensor.all(size, const)
-  return Tensor(tableAll(size, const))
+function Tensor.all(size, generator)
+  return Tensor(tableAll(size, generator))
 end
 
-function Tensor.ones(size) return Tensor.all(size, 1) end
-function Tensor.zeros(size) return Tensor.all(size, 0) end
+function Tensor.ones(size) return Tensor.all(size, function() return 1 end) end
+function Tensor.zeros(size) return Tensor.all(size, function() return 0 end) end
 
 --------------------- Tensor ops --------------------- 
 
@@ -117,6 +117,17 @@ function Tensor:map(fn)
     end
   end
   return Tensor(res)
+end
+
+function Tensor:map_(fn)
+  for i, v in ipairs(self) do
+    if utils.number(v) then
+      self[i] = fn(v)
+    else
+      self[i]:map_(fn)
+    end
+  end
+  return self
 end
 
 function Tensor.piecewise(op, a, b)
