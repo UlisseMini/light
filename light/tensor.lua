@@ -32,7 +32,7 @@ function Tensor.size(t)
 
     size = utils.concat(size, subSize)
   end
-  return size
+  return Tensor(size)
 end
 
 -- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
