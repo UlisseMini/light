@@ -1,9 +1,12 @@
 local F = require('light.F')
+local utils = require('light.utils')
 local Value = {
   grad_enabled = true, -- contextually limit autograd
 }
 Value.__index = Value
 
+local function isnan(x) return x ~= x end
+local function isfinite(x) return x > -math.huge and x < math.huge end
 local function set(xs)
   local t = {}
   for _, v in ipairs(xs) do t[v] = true end
@@ -60,23 +63,27 @@ function Value.new(data, args)
     return data
   end
   local self = {}
+  if isnan(data) or not isfinite(data) then
+    error(('attempt to create Value(%s) args=%s'):format(data, utils.pp(args)))
+  end
   self.data = data
   self.grad = nil
 
   args = args or {}
+  -- WARNING: don't do requires_grad = args.requires_grad or true since args.requires_grad=false
+  -- counts as falsey, so you'll always be setting it to true!
   if args.requires_grad ~= nil then
     self.requires_grad = args.requires_grad
   else
-    self.requires_grad = Value.grad_enabled
+    self.requires_grad = true
   end
 
   if self.requires_grad and Value.grad_enabled then
     self._parents = args._parents
     self._backward = args._backward
+    self._op = args._op -- the op that produced this node, for debugging/etc
   end
   self._parents = self._parents or {}
-  -- TODO: assert op exists
-  self._op = args._op -- the op that produced this node, for debugging/etc
 
   -- Replace numbers in _parents with Value(requires_grad=false)
   for i=1,#self._parents do
@@ -84,6 +91,7 @@ function Value.new(data, args)
       self._parents[i] = Value(self._parents[i], {requires_grad=false})
     end
   end
+
 
   setmetatable(self, Value)
   return self
@@ -140,14 +148,14 @@ function Value:topo()
   return topo
 end
 
-local function isnan(x) return x ~= x end
-
 function Value:_debug()
   return ('%s = %s(%s, %s)')
-    :format(self.data, self._op, self._parents[1].data, self._parents[2].data)
+    :format(self.data, self._op, (self._parents[1] or {}).data, (self._parents[2] or {}).data)
 end
 
 function Value:backward_no_zero()
+  assert(Value.grad_enabled, 'attempt to backprop when grad is disabled')
+
   self.grad = Value(1)
 
   -- walk in reverse topological order, ie. always call backward on all children
@@ -167,17 +175,11 @@ function Value:backward_no_zero()
       for i=1,#parents do
         if parents[i].requires_grad then
           -- my sanity is worth a few cpu cycles
-          if isnan(derivs[i]) then
+          if isnan(derivs[i]) or not isfinite(derivs[i]) then
             print(node:_debug())
             error(('derivs[%s] = %s, backprop through %s'):format(i, derivs[i], node._op))
           end
-          if isnan(parents[i].grad.data) then
-            print(parents[i]:_debug())
-            error(('parents[%s].grad = %s'):format(parents[i], derivs[i], node.grad))
-          end
-
           parents[i].grad = parents[i].grad + derivs[i] * node.grad
-
         end
       end
     end
