@@ -1,0 +1,2 @@
+#!/bin/sh
+luajit -e "package.path = package.path .. ';?/init.lua'" $@
