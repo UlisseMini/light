@@ -45,8 +45,11 @@ function Net:forward(a)
     local W = self.weights[i]
     local b = self.biases[i]
     a = (W:matmul(a) + b)
-    -- FIXME: adding an activation makes it stop learning for some reason
-    -- a:map_(V.relu)
+
+    -- Relu every layer except the last
+    if i ~= #self.weights then
+      a:map_(V.relu)
+    end
   end
   return a
 end
@@ -95,7 +98,7 @@ end
 local epochs = 100
 local lr
 for epoch=1,epochs do
-  lr = 0.1/epoch -- lr decay, TODO: implement momentum
+  lr = 1 / epoch^2 -- lr decay
 
   local train_loss = compute_loss(net, train)
   train_loss:backward()
