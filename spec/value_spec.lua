@@ -125,9 +125,18 @@ describe('Value', function()
   end)
 
   describe('graphs using graphviz', function()
+    local function devnull() end
+    local function accstr()
+      local t = {}
+      return function(s)
+        table.insert(t, s)
+        return table.concat(t, '\n')
+      end
+    end
+
     it('should not crash on wierd inputs', function()
-      local _ = V(5):graphviz_dot()
-      local _ = (V(5) + V(3)):graphviz_dot()
+      local _ = V(5):graphviz_dot(devnull)
+      local _ = (V(5) + V(3)):graphviz_dot(devnull)
     end)
 
     local function run_dot(dot)
@@ -148,9 +157,9 @@ describe('Value', function()
       local z = a + b * c
       z = z + b * c
 
-      assert(run_dot(z:graphviz_dot()))
+      assert(run_dot(z:graphviz_dot(accstr())))
       z:backward()
-      assert(run_dot(z:graphviz_dot()))
+      assert(run_dot(z:graphviz_dot(accstr())))
     end)
   end)
 end)

@@ -204,9 +204,11 @@ function Value._id(t)
   return n
 end
 
-function Value:graphviz_dot()
-  local s = 'digraph {\n'
-  s = s .. 'rankdir=LR\n'
+function Value:graphviz_dot(p)
+  p = p or io.write
+
+  p('digraph {\n')
+  p('rankdir=LR\n')
 
   local function node_label(node)
     if node.requires_grad then
@@ -221,21 +223,20 @@ function Value:graphviz_dot()
   local topo = self:topo()
   for _, node in ipairs(topo) do
     -- this node
-    s = s .. ('%s [shape=record,label="%s"]\n'):format(node:_id(), node_label(node))
+    p(('%s [shape=record,label="%s"]\n'):format(node:_id(), node_label(node)))
     if node._op then
       local op = node._op
       local op_id = op .. node:_id()
-      s = s .. ('"%s" [label="%s"]\n'):format(op_id, Value.pretty_op(op))
-      s = s .. ('"%s" -> "%s"\n'):format(op_id, node:_id())
+      p(('"%s" [label="%s"]\n'):format(op_id, Value.pretty_op(op)))
+      p(('"%s" -> "%s"\n'):format(op_id, node:_id()))
 
       for _, parent in ipairs(node._parents) do
-        s = s .. ('"%s" -> "%s"\n'):format(parent:_id(), op_id)
+        p(('"%s" -> "%s"\n'):format(parent:_id(), op_id))
       end
     end
   end
 
-  s = s .. '}\n'
-  return s
+  return p('}\n')
 end
 
 return Value
