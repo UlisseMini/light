@@ -35,9 +35,6 @@ function Tensor.size(t)
   return Tensor(size)
 end
 
--- since Tensor.new doesn't allow creating a tensor from tensors, we use a table
--- function for recursion, then convert to a tensor in Tensor.all
--- TODO: Refactor (no longer disallowing nested tensors)
 local function tableAll(size, generator)
   local t = {}
   if size == nil or #size == 0 then
@@ -48,7 +45,7 @@ local function tableAll(size, generator)
     t[i] = tableAll(utils.slice(size, 2), generator)
   end
 
-  return t
+  return Tensor(t)
 end
 
 function Tensor.all(size, generator)
