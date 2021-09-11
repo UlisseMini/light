@@ -57,6 +57,21 @@ function Tensor.zeros(size) return Tensor.all(size, function() return 0 end) end
 
 --------------------- Tensor ops --------------------- 
 
+function Tensor:max()
+  return self:reduce(math.max, -math.huge)
+end
+
+function Tensor:argmax()
+  assert(#self:size() == 1)
+  local argmax = -1
+  for i=1,#self do
+    if argmax == -1 or self[i] > self[argmax] then
+      argmax = i
+    end
+  end
+  return argmax
+end
+
 function Tensor.matmul(A, B)
   assert(A:size()[2] == B:size()[1], 'size mismatch')
 

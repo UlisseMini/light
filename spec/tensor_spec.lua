@@ -157,6 +157,23 @@ describe('Tensor', function()
     end)
   end)
 
+  describe('argmax', function()
+    it('should argmax', function()
+      assert.equal(3, (T{1,2,3}):argmax())
+      assert.equal(2, (T{1,3,-1}):argmax())
+    end)
+    it('should error on higher dim tensors', function()
+      assert.error(function() m_2x2:argmax() end)
+    end)
+  end)
+
+  describe('max', function()
+    it('should take the max of n-dim tensors', function()
+      assert.equal(4, m_2x2:max())
+      assert.equal(6, m_2x3:max())
+    end)
+  end)
+
   describe('prod', function()
     it('should take the product of vectors', function()
       local t = T {1,2,3}
