@@ -2,6 +2,7 @@ local utils = require('light.utils')
 local F = require('light.F')
 
 local Tensor = {}
+Tensor.DEBUG = false
 
 Tensor.__index = Tensor
 
@@ -20,13 +21,16 @@ function Tensor.size(t)
   if not utils.number(t) then
     size[1] = #t
     local subSize = Tensor.size(t[1])
-    -- check all children have size subSize
-    for i=2,#t do
-      local childSize = Tensor.size(t[i])
-      if not utils.eq(subSize, childSize) then
-        error(('want subsize %s but got %s in position %s of %s'):format(
-            utils.pp(subSize), utils.pp(childSize), i, utils.pp(t)
-          ))
+    if Tensor.DEBUG then
+      -- check all children have size subSize
+      -- (slow, disable for perf)
+      for i=2,#t do
+        local childSize = Tensor.size(t[i])
+        if not utils.eq(subSize, childSize) then
+          error(('want subsize %s but got %s in position %s of %s'):format(
+              utils.pp(subSize), utils.pp(childSize), i, utils.pp(t)
+            ))
+        end
       end
     end
 
