@@ -98,8 +98,9 @@ function Tensor.matmul(A, B)
       res[i] = {}
       for j=1,p do
         local s = 0
+        local Ai = A[i]
         for k=1,m do
-          s = s + A[i][k] * B[k][j]
+          s = s + Ai[k] * B[k][j]
         end
         res[i][j] = s
       end
