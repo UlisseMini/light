@@ -1,6 +1,5 @@
 local light = require('light')
 local Tensor = light.Tensor
-local V = light.Value
 local image_size = 28
 local num_images = 5
 
@@ -31,6 +30,22 @@ function idxn.read(data, dims, dim, offset)
   return t
 end
 
+
+-- making stuff work with lua and luajit is a pain
+if not bit then
+  bit = {}
+  bit.lshift = assert(load('return function(a,b) return a << b end'))()
+end
+
+-- string.unpack('>i', s) in pure lua so luajit is happy
+function sunpack(s)
+  local v = 0
+  for i=1,#s do
+    v = v + s:byte(i) * bit.lshift(1, 8*(#s - i))
+  end
+  return v
+end
+
 function idxn.readfile(path, n)
   -- see http://yann.lecun.com/exdb/mnist/ for file format specification
   local file = assert(io.open(path, 'rb'))
@@ -39,12 +54,13 @@ function idxn.readfile(path, n)
   local dims = {}
   for i=1,n do
      local chunk = file:read(4)
-     local dim = string.unpack('>i', chunk)
+     local dim = sunpack(chunk)
      table.insert(dims, dim)
   end
-  dims[1] = 64
+  -- TODO: Train on the full dataset
+  dims[1] = 1000
 
-  local data = file:read('a')
+  local data = file:read('*a')
   assert(file:close())
 
 
@@ -80,7 +96,7 @@ local Linear = {}
 Linear.__index = Linear
 
 function Linear:init()
-  self.weights = Tensor.all({10, 28, 28}, function() return math.random()/(28*28) end)
+  self.weights = Tensor.all({10, 28*28}, function() return math.random()/(28*28) end)
 end
 
 function Linear.new()
@@ -90,21 +106,20 @@ function Linear.new()
   return self
 end
 
-function Linear:forward(image)
-  local image = Tensor(image) / 255
-
-  local scores = {}
-  for i=1,num_labels do
-    scores[i] = self.weights[i]:dot(image)
-  end
-  return Tensor(scores)
+local function tovec(image)
+  return Tensor(light.utils.flatten(Tensor(image) / 255))
 end
 
-local function softmax(logits)
-  local t = logits:map(V.exp)
-  return t / t:sum()
-end
+function Linear:forward(x)
+  local y_hat = self.weights:matmul(x)
 
+  -- basically matrix multiplication
+  -- local scores = {}
+  -- for i=1,num_labels do
+  --   scores[i] = self.weights[i]:dot(image)
+  -- end
+  return y_hat
+end
 
 local function label_vec(label)
   local t = Tensor.zeros({num_labels})
@@ -113,12 +128,34 @@ local function label_vec(label)
 end
 
 local function loss_fn(l, image, label)
-  local logits = l:forward(image)
-  local softmaxed = softmax(logits)
-
+  local y_hat = l:forward(tovec(image))
   local y = label_vec(label)
-  local loss = -(y * softmaxed:map(V.log)):sum()
+  local loss = ((y_hat - y)^2):sum()
   return loss
+end
+
+local function loss_grad(l, image, label)
+  local y = label_vec(label)
+  local x = tovec(image)
+  local y_hat = l:forward(tovec(image))
+
+  -- compute outer(2*(y_hat - y), x)
+  local outer = {}
+  for i=1,#y do
+    outer[i] = {}
+    for j=1,#x do
+      outer[i][j] = 2*(y_hat[i] - y[i]) * x[j]
+    end
+  end
+  return Tensor(outer)
+end
+
+local function minibatch_loss_grad(l, data, labels)
+  local all = 0
+  for i=1,#data do
+    all = all + loss_grad(l, data[i], labels[i])
+  end
+  return all / #data
 end
 
 local function minibatch_loss(l, data, labels)
@@ -135,7 +172,7 @@ local function accuracy(l, data, labels)
   return light.no_grad(function()
     local correct = 0
     for i=1,#data do
-      local y_hat = l:forward(data[i])
+      local y_hat = l:forward(tovec(data[i]))
       if y_hat:argmax() == labels[i]+1 then
         correct = correct + 1
       end
@@ -145,15 +182,23 @@ local function accuracy(l, data, labels)
 end
 
 local l = Linear.new()
-l.weights:map_(V)
 
-for epoch=1, 100 do
+-- local profiler = require('profiler')
+-- profiler.start()
+
+for epoch=1, 10 do
   local loss = minibatch_loss(l, train_data, train_labels)
-  print(('loss %.3f accuracy %.3f'):format(loss.data, accuracy(l, train_data, train_labels)))
+  local maxw = l.weights:max()
+  print(('[epoch %s] loss %.3f accuracy %.3f maxw %.3f'):format(epoch, loss, accuracy(l, train_data, train_labels), maxw))
+  local grad = minibatch_loss_grad(l, train_data, train_labels)
+  grad = grad / (grad*grad):sum()
+  l.weights = l.weights - 0.1*grad
 
-  loss:backward()
-
-  light.no_grad(function()
-    l.weights:map_(function(w) return w - (0.3/epoch) * w.grad end)
-  end)
+  -- light.no_grad(function()
+  --   l.weights:map_(function(w) return w - (0.3/epoch) * w.grad end)
+  -- end)
 end
+
+-- profiler.stop()
+-- profiler.report('mnist.log')
+
