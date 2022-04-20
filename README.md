@@ -4,9 +4,36 @@ Machine learning in pure lua. Think pytorch but a lot slower
 
 # Examples
 
+## Least Squares
+
+Take a look at `examples/least_squares.py` for the Pytorch version (which yields the exact same solution, within rounding error)
+
+```
+$ lua examples/least_squares.lua
+loss 5.0000     x = {0, 0}
+loss 0.8200     x = {0.14, 0.2}
+loss 0.1422     x = {0.196, 0.2808}
+loss 0.0322     x = {0.218176, 0.3136}
+[...many more lines...]
+loss 0.0001     x = {0.016149678247001, 0.48861901172629}
+got {0.016106419314241, 0.48864949712661} want {0, 0.5}
+```
+
+## Graphviz
+
+Calling `Value:graphviz_dot()` will write [graphviz](https://graphviz.org/) dot language displaying the Autodiff graph to the specified output. For example
+
+```
+$ lua examples/graphviz.lua | dot -Tsvg -o examples/graph.svg
+```
+
+Gives
+
+![](examples/graph.svg)
+
 ## MNIST
 
-It's unusably slow since I do value-level autodiff for API simplicity since Lua overloading is a pain
+Since light is scalar based it's unusably slow for mnist. I have a mnist example, but the gradients are hardcoded (and it's only a single layer)
 
 ```
 $ lua examples/mnist/main.lua
@@ -50,15 +77,3 @@ label   5
 [epoch 9] loss 0.517 accuracy 0.794 maxw 0.022
 [epoch 10] loss 0.526 accuracy 0.820 maxw 0.031
 ```
-
-## Graphviz
-
-Calling `Value:graphviz_dot()` will write [graphviz](https://graphviz.org/) dot language displaying the Autodiff graph to the specified output. For example
-
-```
-$ lua examples/graphviz.lua | dot -Tsvg -o examples/graph.svg
-```
-
-Gives
-
-![](examples/graph.svg)
