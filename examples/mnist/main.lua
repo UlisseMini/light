@@ -72,7 +72,7 @@ local function imshow(img)
     for j=1,#img[1] do
       local pixel = img[i][j]
       if pixel > 50 then
-        io.write('* ')
+        io.write('# ')
       else
         io.write('. ')
       end
