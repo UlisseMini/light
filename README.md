@@ -6,7 +6,7 @@ Machine learning in pure lua. Think pytorch but a lot slower
 
 ## Least Squares
 
-Take a look at `examples/least_squares.py` for the Pytorch version (which yields the exact same solution, within rounding error)
+Lua version
 
 ```
 $ lua examples/least_squares.lua
@@ -17,6 +17,19 @@ loss 0.0322     x = {0.218176, 0.3136}
 [...many more lines...]
 loss 0.0001     x = {0.016149678247001, 0.48861901172629}
 got {0.016106419314241, 0.48864949712661} want {0, 0.5}
+```
+
+PyTorch version (exactly the same digits within rounding error!)
+
+```
+$ python examples/least_squares.py
+loss 5.0000     x = tensor([0., 0.], requires_grad=True)
+loss 0.8200     x = tensor([0.1400, 0.2000], requires_grad=True)
+loss 0.1422     x = tensor([0.1960, 0.2808], requires_grad=True)
+loss 0.0322     x = tensor([0.2182, 0.3136], requires_grad=True)
+[...many more lines...]
+loss 0.0001     x = tensor([0.0162, 0.4886], requires_grad=True)
+got tensor([0.0161, 0.4886], requires_grad=True) want tensor([0.0000, 0.5000])
 ```
 
 ## Graphviz
